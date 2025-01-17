@@ -1,0 +1,162 @@
+// ViewPage.scss
+
+.view-page {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  background: linear-gradient(135deg, #f0f4f8, #d9e6f2);
+  
+
+  header {
+    text-align: center;
+    margin-bottom: 40%;
+
+    img {
+      border-radius: 50%;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+  }
+
+  h2 {
+    color: #007BFF;
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 1.8rem;
+    font-weight: bold;
+  }
+
+  button {
+    background-color: #007BFF;
+    color: #fff;
+    border: none;
+    padding: 10px 15px;
+    margin: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s;
+
+    &:hover {
+      background-color: #0056b3;
+    }
+  }
+
+  // table {
+  //   width: 100%;
+  //   border-collapse: collapse;
+  //   margin-top: 20px;
+
+  //   th, td {
+  //     padding: 10px;
+  //     text-align: center;
+  //     border: 1px solid #ddd;
+  //   }
+
+  //   th {
+  //     background-color: #f4f6f9;
+  //     color: #333;
+  //     font-weight: bold;
+  //   }
+
+  //   tbody tr:nth-child(even) {
+  //     background-color: #f9f9f9;
+  //   }
+
+  //   tbody tr:hover {
+  //     background-color: #eaf3ff;
+  //   }
+
+  //   button {
+  //     background-color: #FF4136;
+  //     &:hover {
+  //       background-color: #E63946;
+  //     }
+  //   }
+  // }
+
+  table {
+    
+    border-collapse: collapse;
+    background: white;
+    // border-radius: $border-radius;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    
+    // Style for header cells (first row)
+    thead th {
+      padding: 12px;
+      text-align: center; // Center alignment for header
+      background: rgb(91, 161, 182);
+      color: white;
+      border: 1px solid #ddd;
+      overflow: hidden;
+      // text-overflow: ellipsis;
+      // white-space: nowrap;
+    }
+
+    // Style for data cells (all other rows)
+    tbody td {
+      padding: 12px;
+      text-align: left; // Left alignment for data
+      border: 1px solid #ddd;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      // white-space: nowrap;
+    }
+
+    // th, td {
+    //     padding: 12px;
+    //     text-align: center;
+    //     border: 1px solid #ddd;
+    // }
+    td:nth-child(1),
+    td:nth-child(1) {
+      // id
+      width: 1%;
+    }
+
+    th {
+      background: gray;
+      color: white;
+    }
+
+    th:nth-child(2),
+    td:nth-child(2) {
+      //name
+      width: 10%;
+    }
+
+    th:nth-child(3),
+    td:nth-child(3) {
+      // seri
+      width: 1%;
+    }
+
+    th:nth-child(4),
+    td:nth-child(4) {
+      // Hành động
+      width: 1%;
+    }
+
+    th:nth-child(5),
+    td:nth-child(5) {
+      // note
+      width: 50%;
+    }
+
+    th:nth-child(6),
+    td:nth-child(6) {
+      // Ngày giờ
+      width: 1%;
+    }
+
+    th:nth-child(7),
+    td:nth-child(7) {
+      // action
+      width: 1%;
+    }
+
+    tbody tr:nth-child(odd) {
+      background: #edf2f7;
+    }
+  }
+}

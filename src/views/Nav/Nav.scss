@@ -1,0 +1,43 @@
+.topnav {
+  background-color: #cfe8fd;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  height: 60px;  // Set a fixed height for consistency
+  // padding: 0 15px;
+
+  a {
+      display: flex;
+      align-items: center;
+      height: 100%;
+      color: #000000;
+      text-align: center;
+      padding: 0 16px;
+      // text-decoration: wavy;
+      // font-size: 22px;
+      text-decoration: none;
+      
+      &:hover {
+          background-color: #ddd;
+          color: rgb(0, 0, 0);
+      }
+      
+      &.active {
+          background-color: #f7c27e;
+          color: rgb(172, 1, 1);
+      }
+  }
+
+  .logo-container {
+      display: flex;
+      align-items: center;
+      height: 100%;
+      padding: 10px 0;
+
+      .logo {
+          height: 50px;
+          width: auto;
+          object-fit: contain;
+      }
+  }
+}
