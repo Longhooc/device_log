@@ -4,6 +4,7 @@ import './App.scss';
 import Nav from "./Nav/Nav";
 import View_page from "../pages/View_page";
 import DeviceInputForm from "../pages/Form";
+import LinkManager from "../pages/LinkManager";
 
 import {
   BrowserRouter,
@@ -19,6 +20,9 @@ function App() {
       <Switch>
         <Route path="/home" exact>
           <View_page />
+        </Route>
+        <Route path="/link-manager" exact>
+          <LinkManager />
         </Route>
         <Route path="/">
           <DeviceInputForm />
