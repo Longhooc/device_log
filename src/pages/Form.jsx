@@ -81,7 +81,7 @@ function DeviceInputForm() {
 
             <h2>Nhập thông tin theo Sê ri (S/N)</h2>
             <form>
-                <div class="form-group">
+                <div className="form-group">
 
                     <div className="input-group">
                         <label htmlFor="seri">Seri:</label>

@@ -1,5 +1,6 @@
 // Gemini AI API Service
 // Lấy API key và model từ localStorage; fallback về biến môi trường/giá trị mặc định
+import { applyMasking } from '../utils/privacyFilter';
 
 const getLocalStorage = () => {
     try {
@@ -44,7 +45,7 @@ const buildApiUrl = (model, apiKey) => `https://generativelanguage.googleapis.co
 /**
  * Search and find relevant links using Gemini AI (smart search)
  */
-export const searchLinksWithGemini = async (links, searchQuery = '') => {
+export const searchLinksWithGemini = async (links, searchQuery = '', privacyFilters = []) => {
     const apiKey = getActiveApiKey();
     if (!apiKey) {
         throw new Error('Gemini API key is not configured. Please set in Settings or REACT_APP_GEMINI_API_KEY.');
@@ -52,7 +53,9 @@ export const searchLinksWithGemini = async (links, searchQuery = '') => {
     const model = getModelFor('smart');
 
     try {
-        const prompt = createSearchPrompt(links, searchQuery);
+        const maskedLinks = maskLinksArray(links, privacyFilters);
+        const maskedQuery = applyMasking(searchQuery, privacyFilters).masked;
+        const prompt = createSearchPrompt(maskedLinks, maskedQuery);
         const url = buildApiUrl(model, apiKey);
 
         const response = await fetch(url, {
@@ -158,7 +161,13 @@ const groupLinksByType = (links) => {
 /**
  * Ask Gemini to search for specific links based on criteria (quick)
  */
-export const askGeminiSpecificQuestion = async (question, links = []) => {
+
+
+/**
+ * Ask Gemini to search for specific links based on criteria (quick)
+ * Supports optional privacyFilters to mask sensitive fields in links and question
+ */
+export const askGeminiSpecificQuestion = async (question, links = [], privacyFilters = []) => {
     const apiKey = getActiveApiKey();
     if (!apiKey) {
         throw new Error('Gemini API key is not configured.');
@@ -166,13 +175,15 @@ export const askGeminiSpecificQuestion = async (question, links = []) => {
     const model = getModelFor('quick');
 
     try {
+        const maskedLinks = maskLinksArray(links, privacyFilters);
+        const maskedQuestion = applyMasking(question, privacyFilters).masked;
         let prompt = `
 Bạn là trợ lý tra cứu links. Dựa vào danh sách links có sẵn, hãy tìm những links phù hợp với yêu cầu.
 
-YÊU CẦU TRA CỨU: "${question}"
+YÊU CẦU TRA CỨU: "${maskedQuestion}"
 
 DANH SÁCH LINKS CÓ SẴN:
-${links.map((link, index) => `${index + 1}. "${link.title}" 
+${maskedLinks.map((link, index) => `${index + 1}. "${link.title}" 
    - Phòng ban: ${link.department}
    - Loại: ${link.type} 
    - Mô tả: ${link.description || 'Không có'}
@@ -214,19 +225,21 @@ HƯỚNG DẪN:
 /**
  * Find links by department or type using Gemini AI (smart)
  */
-export const findLinksByCriteria = async (links, criteria) => {
+export const findLinksByCriteria = async (links, criteria, privacyFilters = []) => {
+    const maskedLinks = maskLinksArray(links, privacyFilters);
+    const maskedCriteria = applyMasking(criteria, privacyFilters).masked;
     const prompt = `
 Dựa vào danh sách ${links.length} links sau đây, hãy tìm những links phù hợp với tiêu chí: "${criteria}"
 
 DANH SÁCH LINKS:
-${links.map((link, i) => `${i+1}. "${link.title}"
+${maskedLinks.map((link, i) => `${i+1}. "${link.title}"
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có'}
    - URL: ${link.url}`).join('\n\n')}
 
 YÊU CẦU:
-- CHỈ liệt kê những links khớp với tiêu chí "${criteria}"
+- CHỈ liệt kê những links khớp với tiêu chí "${maskedCriteria}"
 - KHÔNG thêm gợi ý hay lời khuyên
 - Nếu không tìm thấy, trả lời "Không có link nào phù hợp với tiêu chí này"
 - Format: Số thứ tự, tên link, phòng ban, loại
@@ -244,7 +257,7 @@ Trả lời bằng tiếng Việt:
  * @param {string} searchContext - Bối cảnh tìm kiếm (tùy chọn)
  * @returns {Promise<string>} - Kết quả phân tích độ khớp
  */
-export const deepSearchWithReference = async (links, referenceUrl = '', searchContext = '') => {
+export const deepSearchWithReference = async (links, referenceUrl = '', searchContext = '', privacyFilters = []) => {
     const apiKey = getActiveApiKey();
     if (!apiKey) {
         throw new Error('Gemini API key is not configured.');
@@ -255,13 +268,14 @@ export const deepSearchWithReference = async (links, referenceUrl = '', searchCo
         // Kiểm tra xem searchContext có chứa nội dung đã cào không
         const hasScrapedContent = searchContext && searchContext.includes('--- NỘI DUNG TÀI LIỆU THAM CHIẾU ---');
         
+        const maskedLinks = maskLinksArray(links, privacyFilters);
         let prompt = `
 Bạn là chuyên gia phân tích và so sánh tài liệu. 
 
 ${searchContext ? `${searchContext}\n` : ''}
 
 DANH SÁCH TÀI LIỆU CẦN SO SÁNH:
-${links.map((link, i) => `${i+1}. "${link.title}"
+${maskedLinks.map((link, i) => `${i+1}. "${link.title}"
    - URL: ${link.url}
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
@@ -359,3 +373,18 @@ const callGeminiWithPrompt = async (prompt, feature = 'smart') => {
         throw error;
     }
 };
+
+// Helpers to mask link fields by privacy filters
+const maskLink = (link, rules = []) => {
+    if (!link) return link;
+    return {
+        ...link,
+        title: applyMasking(link.title || '', rules).masked,
+        description: applyMasking(link.description || '', rules).masked,
+        url: applyMasking(link.url || '', rules).masked,
+        department: applyMasking(link.department || '', rules).masked,
+        type: applyMasking(link.type || '', rules).masked
+    };
+};
+
+const maskLinksArray = (links = [], rules = []) => links.map(l => maskLink(l, rules));

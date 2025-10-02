@@ -1,14 +1,32 @@
-// API client cho Google Links Management
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://axithcl.sytes.net:7778/api';
+// API client cho Google Links Management với Authentication
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://axithcl.sytes.net:7778';
 
 /**
- * Lấy danh sách tất cả links
+ * Lấy token từ localStorage
+ */
+const getAuthToken = () => {
+    return localStorage.getItem('authToken');
+};
+
+/**
+ * Tạo headers với authentication
+ */
+const createAuthHeaders = () => {
+    const token = getAuthToken();
+    return {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+    };
+};
+
+/**
+ * Lấy danh sách tất cả links với permissions
  * @param {Object} filters - Bộ lọc
  * @param {string} filters.department - Phòng ban
  * @param {string} filters.type - Loại tài liệu
  * @param {string} filters.search - Từ khóa tìm kiếm
  * @param {boolean} filters.favorite - Chỉ lấy yêu thích
- * @returns {Promise<Array>} - Danh sách links
+ * @returns {Promise<Array>} - Danh sách links với permissions
  */
 export const fetchLinks = async (filters = {}) => {
     try {
@@ -27,13 +45,55 @@ export const fetchLinks = async (filters = {}) => {
             params.append('favorite', 'true');
         }
 
-        const response = await fetch(`${API_BASE_URL}/links?${params.toString()}`);
+        const response = await fetch(`${API_BASE_URL}/api/links?${params.toString()}`, {
+            headers: createAuthHeaders()
+        });
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        return await response.json();
+        const links = await response.json();
+        
+        // Thêm permissions cho mỗi link
+        const linksWithPermissions = await Promise.all(
+            links.map(async (link) => {
+                try {
+                    const permissionsResponse = await fetch(`${API_BASE_URL}/api/links/${link.id}/permissions`, {
+                        headers: createAuthHeaders()
+                    });
+                    
+                    if (permissionsResponse.ok) {
+                        const permissions = await permissionsResponse.json();
+                        console.log(`[linksApi] Fetched permissions for link ${link.id}:`, permissions);
+                        return { ...link, permissions };
+                    } else {
+                        console.warn(`[linksApi] Failed to fetch permissions for link ${link.id}, status:`, permissionsResponse.status);
+                        // Nếu không có permissions, backend sẽ trả về default an toàn
+                        return { 
+                            ...link, 
+                            permissions: {
+                                allowedRoles: ['admin', 'director'],
+                                allowManagerPreview: false,
+                                allowEmployeePreview: false
+                            }
+                        };
+                    }
+                } catch (error) {
+                    console.error(`[linksApi] Error fetching permissions for link ${link.id}:`, error);
+                    return { 
+                        ...link, 
+                        permissions: {
+                            allowedRoles: ['admin', 'director'],
+                            allowManagerPreview: false,
+                            allowEmployeePreview: false
+                        }
+                    };
+                }
+            })
+        );
+        
+        return linksWithPermissions;
     } catch (error) {
         console.error('Error fetching links:', error);
         throw error;
@@ -47,7 +107,9 @@ export const fetchLinks = async (filters = {}) => {
  */
 export const fetchLinkById = async (id) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/links/${id}`);
+        const response = await fetch(`${API_BASE_URL}/api/links/${id}`, {
+            headers: createAuthHeaders()
+        });
         
         if (!response.ok) {
             if (response.status === 404) {
@@ -56,7 +118,23 @@ export const fetchLinkById = async (id) => {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        return await response.json();
+        const link = await response.json();
+        
+        // Lấy permissions
+        try {
+            const permissionsResponse = await fetch(`${API_BASE_URL}/api/links/${id}/permissions`, {
+                headers: createAuthHeaders()
+            });
+            
+            if (permissionsResponse.ok) {
+                const permissions = await permissionsResponse.json();
+                return { ...link, permissions };
+            }
+        } catch (error) {
+            console.error('Error fetching permissions:', error);
+        }
+        
+        return link;
     } catch (error) {
         console.error('Error fetching link by ID:', error);
         throw error;
@@ -76,11 +154,9 @@ export const fetchLinkById = async (id) => {
  */
 export const createLink = async (linkData) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/links`, {
+        const response = await fetch(`${API_BASE_URL}/api/links`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: createAuthHeaders(),
             body: JSON.stringify(linkData)
         });
         
@@ -104,11 +180,9 @@ export const createLink = async (linkData) => {
  */
 export const updateLink = async (id, linkData) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/links/${id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/links/${id}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: createAuthHeaders(),
             body: JSON.stringify(linkData)
         });
         
@@ -132,11 +206,9 @@ export const updateLink = async (id, linkData) => {
  */
 export const deleteLink = async (id, authCode) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/links/${id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/links/${id}`, {
             method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: createAuthHeaders(),
             body: JSON.stringify({ authCode })
         });
         
@@ -160,11 +232,9 @@ export const deleteLink = async (id, authCode) => {
  */
 export const toggleFavorite = async (id, isFavorite) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/links/${id}/favorite`, {
+        const response = await fetch(`${API_BASE_URL}/api/links/${id}/favorite`, {
             method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: createAuthHeaders(),
             body: JSON.stringify({ is_favorite: isFavorite })
         });
         
@@ -187,11 +257,9 @@ export const toggleFavorite = async (id, isFavorite) => {
  */
 export const incrementAccessCount = async (id) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/links/${id}/access`, {
+        const response = await fetch(`${API_BASE_URL}/api/links/${id}/access`, {
             method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            }
+            headers: createAuthHeaders()
         });
         
         if (!response.ok) {
@@ -212,7 +280,9 @@ export const incrementAccessCount = async (id) => {
  */
 export const fetchStats = async () => {
     try {
-        const response = await fetch(`${API_BASE_URL}/links/stats`);
+        const response = await fetch(`${API_BASE_URL}/api/links/stats`, {
+            headers: createAuthHeaders()
+        });
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);

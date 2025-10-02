@@ -5,6 +5,23 @@ import './View_page.scss';
 function ViewPage() {
     const [data, setData] = useState([]);
 
+    const renderNoteWithLinks = (noteText) => {
+        if (!noteText) return '';
+        const urlPattern = /(https?:\/\/[^\s]+)/g;
+        const textSegments = noteText.split(urlPattern);
+        return textSegments.map((segment, index) => {
+            const isUrl = segment.startsWith('http://') || segment.startsWith('https://');
+            if (isUrl) {
+                return (
+                    <a key={`link-${index}`} href={segment} target="_blank" rel="noopener noreferrer">
+                        {segment}
+                    </a>
+                );
+            }
+            return <React.Fragment key={`text-${index}`}>{segment}</React.Fragment>;
+        });
+    };
+
     useEffect(() => {
         const fetchDataAndSort = async () => {
             try {
@@ -115,7 +132,7 @@ function ViewPage() {
                             <td>{item.name_device}</td>
                             <td>{item.seri}</td>
                             <td>{item.action}</td>
-                            <td>{item.note}</td>
+                            <td>{renderNoteWithLinks(item.note)}</td>
                             <td>{new Date(item.created_at).toLocaleString()}</td>
                             <td><button onClick={() => deleteRow(item.id)}>Xóa</button></td>
                         </tr>

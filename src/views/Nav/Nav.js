@@ -9,7 +9,7 @@ import {
 class Nav extends React.Component {
     render() {
         return (
-            <div class="topnav">
+            <div className="topnav">
                 {/* <Header /> */}
                 <NavLink to="/home" activeClassName="active" exact={true}>
                     <div className="logo-container">
