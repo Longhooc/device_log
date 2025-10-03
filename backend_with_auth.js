@@ -383,64 +383,158 @@ app.get('/api/links/:id/access', authenticateToken, (req, res) => {
     });
 });
 
-// ==================== GOOGLE LINKS API (giữ nguyên) ====================
+// ==================== GOOGLE LINKS API (với Permission Security) ====================
 
-// 1. Lấy tất cả links
-app.get('/api/links', (req, res) => {
-    const { department, type, search, favorite } = req.query;
+/**
+ * Helper function: Check if user has access to link based on permissions
+ */
+function checkUserAccess(userRole, allowedRoles) {
+    // Admin luôn có quyền
+    if (userRole === 'admin') return true;
     
-    let sql = 'SELECT * FROM google_links WHERE is_active = 1';
+    // Parse allowed_roles nếu là JSON string
+    let roles = allowedRoles;
+    if (typeof allowedRoles === 'string') {
+        try {
+            roles = JSON.parse(allowedRoles);
+        } catch (e) {
+            console.error('Error parsing allowed_roles:', e);
+            return false;
+        }
+    }
+    
+    // Kiểm tra role có trong danh sách không
+    return Array.isArray(roles) && roles.includes(userRole);
+}
+
+// 1. Lấy tất cả links với permission filtering
+app.get('/api/links', authenticateToken, (req, res) => {
+    const { department, type, search, favorite } = req.query;
+    const userRole = req.user.role;
+    const userId = req.user.userId;
+    
+    console.log(`\n[GET /api/links] Request from user: ${req.user.username} (${userRole})`);
+    
+    // Query để lấy links và permissions
+    let sql = `
+        SELECT 
+            gl.*,
+            lp.allowed_roles,
+            lp.allow_manager_preview,
+            lp.allow_employee_preview
+        FROM google_links gl
+        LEFT JOIN link_permissions lp ON gl.id = lp.link_id
+        WHERE gl.is_active = 1
+    `;
     const params = [];
     
     // Lọc theo phòng ban
     if (department && department !== 'all') {
-        sql += ' AND department = ?';
+        sql += ' AND gl.department = ?';
         params.push(department);
     }
     
     // Lọc theo loại
     if (type && type !== 'all') {
-        sql += ' AND type = ?';
+        sql += ' AND gl.type = ?';
         params.push(type);
     }
     
     // Tìm kiếm theo tiêu đề hoặc mô tả
     if (search) {
-        sql += ' AND (title LIKE ? OR description LIKE ?)';
+        sql += ' AND (gl.title LIKE ? OR gl.description LIKE ?)';
         params.push(`%${search}%`, `%${search}%`);
     }
     
     // Lọc theo yêu thích
     if (favorite === 'true') {
-        sql += ' AND is_favorite = 1';
+        sql += ' AND gl.is_favorite = 1';
     }
     
-    sql += ' ORDER BY created_at DESC';
+    sql += ' ORDER BY gl.created_at DESC';
     
     db.query(sql, params, (err, results) => {
         if (err) {
             console.error('Lỗi khi lấy danh sách links:', err);
-            res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
-        } else {
-            res.json(results);
+            return res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
         }
+        
+        console.log(`[GET /api/links] Found ${results.length} links in database`);
+        
+        // Filter URL based on permissions
+        const filteredResults = results.map(link => {
+            // Default permissions nếu không có
+            const allowedRoles = link.allowed_roles || JSON.stringify(['admin', 'director']);
+            const hasAccess = checkUserAccess(userRole, allowedRoles);
+            
+            // Nếu không có quyền: MASK URL = null
+            if (!hasAccess) {
+                console.log(`  ❌ User ${userRole} NO ACCESS to link ${link.id}: ${link.title} - URL masked`);
+                return {
+                    ...link,
+                    url: null, // MASK URL cho links không có quyền
+                    _restricted: true // Flag để frontend biết
+                };
+            } else {
+                console.log(`  ✅ User ${userRole} HAS ACCESS to link ${link.id}: ${link.title}`);
+                return {
+                    ...link,
+                    _restricted: false
+                };
+            }
+        });
+        
+        console.log(`[GET /api/links] Returning ${filteredResults.length} links (${filteredResults.filter(l => !l._restricted).length} accessible, ${filteredResults.filter(l => l._restricted).length} restricted)`);
+        
+        res.json(filteredResults);
     });
 });
 
-// 2. Lấy link theo ID
-app.get('/api/links/:id', (req, res) => {
+// 2. Lấy link theo ID với permission filtering
+app.get('/api/links/:id', authenticateToken, (req, res) => {
     const id = req.params.id;
-    const sql = 'SELECT * FROM google_links WHERE id = ? AND is_active = 1';
+    const userRole = req.user.role;
+    
+    const sql = `
+        SELECT 
+            gl.*,
+            lp.allowed_roles,
+            lp.allow_manager_preview,
+            lp.allow_employee_preview
+        FROM google_links gl
+        LEFT JOIN link_permissions lp ON gl.id = lp.link_id
+        WHERE gl.id = ? AND gl.is_active = 1
+    `;
     
     db.query(sql, [id], (err, results) => {
         if (err) {
             console.error('Lỗi khi lấy link:', err);
-            res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
-        } else if (results.length === 0) {
-            res.status(404).json({ message: 'Không tìm thấy link' });
-        } else {
-            res.json(results[0]);
+            return res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
         }
+        
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Không tìm thấy link' });
+        }
+        
+        const link = results[0];
+        const allowedRoles = link.allowed_roles || JSON.stringify(['admin', 'director']);
+        const hasAccess = checkUserAccess(userRole, allowedRoles);
+        
+        // Nếu không có quyền: MASK URL
+        if (!hasAccess) {
+            console.log(`[GET /api/links/${id}] User ${userRole} NO ACCESS - URL masked`);
+            return res.json({
+                ...link,
+                url: null,
+                _restricted: true
+            });
+        }
+        
+        console.log(`[GET /api/links/${id}] User ${userRole} HAS ACCESS`);
+        res.json({
+            ...link,
+            _restricted: false
+        });
     });
 });
 

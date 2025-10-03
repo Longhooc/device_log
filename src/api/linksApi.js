@@ -305,7 +305,7 @@ export const searchWithGemini = async (links, searchQuery) => {
     // Fallback về local search nếu không có Gemini
     const filteredLinks = links.filter(link => 
         link.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        link.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (link.description && link.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         link.department.toLowerCase().includes(searchQuery.toLowerCase())
     );
     

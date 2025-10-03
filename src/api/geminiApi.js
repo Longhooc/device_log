@@ -111,7 +111,7 @@ ${links.map((link, index) =>
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có mô tả'}
-   - URL: ${link.url}
+   - URL: ${link.url || '[URL bị ẩn - Không có quyền truy cập]'}
    - Ngày thêm: ${link.dateAdded}`
 ).join('\n\n')}
 
@@ -187,7 +187,7 @@ ${maskedLinks.map((link, index) => `${index + 1}. "${link.title}"
    - Phòng ban: ${link.department}
    - Loại: ${link.type} 
    - Mô tả: ${link.description || 'Không có'}
-   - URL: ${link.url}`).join('\n\n')}
+   - URL: ${link.url || '[URL bị ẩn - Không có quyền truy cập]'}`).join('\n\n')}
 
 HƯỚNG DẪN:
 - CHỈ trả lời về các links có trong danh sách trên
@@ -236,7 +236,7 @@ ${maskedLinks.map((link, i) => `${i+1}. "${link.title}"
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có'}
-   - URL: ${link.url}`).join('\n\n')}
+   - URL: ${link.url || '[URL bị ẩn - Không có quyền truy cập]'}`).join('\n\n')}
 
 YÊU CẦU:
 - CHỈ liệt kê những links khớp với tiêu chí "${maskedCriteria}"
@@ -276,7 +276,7 @@ ${searchContext ? `${searchContext}\n` : ''}
 
 DANH SÁCH TÀI LIỆU CẦN SO SÁNH:
 ${maskedLinks.map((link, i) => `${i+1}. "${link.title}"
-   - URL: ${link.url}
+   - URL: ${link.url || '[URL bị ẩn - Không có quyền truy cập]'}
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có mô tả'}`).join('\n\n')}

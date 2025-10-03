@@ -19,8 +19,14 @@ function LinkCard({
     // Kiểm tra quyền truy cập link
     const hasAccess = canAccessLink(link.permissions);
     const canPreview = canPreviewLink(link.permissions);
+    
+    // SECURITY: Backend đã mask URL nếu không có quyền
+    // Nếu URL = null → không có quyền truy cập
+    const isUrlRestricted = !link.url || link._restricted;
+    const actualUrl = isUrlRestricted ? '#' : link.url;
+    
     return (
-        <div className={`link-card ${link.type} ${!hasAccess ? 'restricted' : ''}`}>
+        <div className={`link-card ${link.type} ${!hasAccess || isUrlRestricted ? 'restricted' : ''}`}>
             <div className="card-header">
                 <span className="link-type">
                     {linkTypes.find(t => t.value === link.type)?.icon} 
@@ -72,19 +78,23 @@ function LinkCard({
                         👁️ Xem
                     </button>
                     <a
-                        href={hasAccess ? link.url : '#'}
-                        target={hasAccess ? "_blank" : "_self"}
-                        rel={hasAccess ? "noopener noreferrer" : ""}
-                        className={`btn-open ${!hasAccess ? 'disabled' : ''}`}
+                        href={actualUrl}
+                        target={(hasAccess && !isUrlRestricted) ? "_blank" : "_self"}
+                        rel={(hasAccess && !isUrlRestricted) ? "noopener noreferrer" : ""}
+                        className={`btn-open ${(!hasAccess || isUrlRestricted) ? 'disabled' : ''}`}
                         onClick={(e) => {
-                            if (hasAccess) {
+                            if (hasAccess && !isUrlRestricted) {
                                 onLinkClick(link.id);
                             } else {
                                 e.preventDefault();
-                                alert('Bạn không có quyền truy cập link này!');
+                                if (isUrlRestricted) {
+                                    alert('⚠️ BẢO MẬT: URL đã bị ẩn do bạn không có quyền truy cập!\nLiên hệ Admin để được cấp quyền.');
+                                } else {
+                                    alert('Bạn không có quyền truy cập link này!');
+                                }
                             }
                         }}
-                        title={hasAccess ? "Mở link" : "Không có quyền truy cập"}
+                        title={(hasAccess && !isUrlRestricted) ? "Mở link" : "URL đã bị ẩn - Không có quyền truy cập"}
                     >
                         🔗 Mở
                     </a>

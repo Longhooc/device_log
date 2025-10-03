@@ -133,7 +133,7 @@ function LinkManager() {
     const filteredLinks = linksWithPermissions.filter(link => {
         // Kiểm tra tìm kiếm và phòng ban
         const matchesSearch = link.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            link.description.toLowerCase().includes(searchTerm.toLowerCase());
+                            (link.description && link.description.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesDepartment = selectedDepartment === 'all' || link.department === selectedDepartment;
         
         return matchesSearch && matchesDepartment;
@@ -335,7 +335,7 @@ function LinkManager() {
                     displayedLines={gemini.displayedLines}
                     onPreview={handlePreview}
                     onClose={gemini.clearResponse}
-                    linksWithPermissions={linksWithPermissions}
+                    linksWithPermissions={linksWithPermissions.filter(link => link.url !== null)}
                     canAccessLink={canAccessLink}
                     canPreviewLink={canPreviewLink}
                 />

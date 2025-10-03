@@ -32,7 +32,7 @@ export const scrapeGoogleDocContent = async (url) => {
         let content = '';
         
         // Google Docs - export as plain text
-        if (url.includes('docs.google.com/document')) {
+        if (url && url.includes('docs.google.com/document')) {
             const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
             if (match) {
                 const docId = match[1];
@@ -52,7 +52,7 @@ export const scrapeGoogleDocContent = async (url) => {
         }
         
         // Google Sheets - export as CSV/TSV
-        if (url.includes('docs.google.com/spreadsheets')) {
+        if (url && url.includes('docs.google.com/spreadsheets')) {
             const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
             if (match) {
                 const sheetId = match[1];

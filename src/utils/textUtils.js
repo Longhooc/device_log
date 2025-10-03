@@ -11,10 +11,11 @@ export const renderLineWithLinks = (line, onPreview, linksWithPermissions = [], 
     return line.split(urlRegex).map((part, i) => {
         if (urlRegex.test(part)) {
             // Tìm link tương ứng trong danh sách
+            // ✅ SECURITY FIX: Check URL null trước khi gọi .includes()
             const matchingLink = linksWithPermissions.find(link => 
                 link.url === part || 
-                link.url.includes(part) || 
-                part.includes(link.url)
+                (link.url && link.url.includes(part)) || 
+                (link.url && part.includes(link.url))
             );
             
             // Kiểm tra quyền truy cập
@@ -130,7 +131,7 @@ export const getFriendlyGeminiError = (error) => {
  * Convert URL to embed format
  */
 export const convertToEmbedUrl = (url) => {
-    if (!url) return null;
+    if (!url || typeof url !== 'string') return null;
     
     // Google Docs
     if (url.includes('docs.google.com/document')) {
