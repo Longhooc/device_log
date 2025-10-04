@@ -29,6 +29,9 @@ class Nav extends React.Component {
                 <NavLink to="/link-manager" activeClassName="active" exact={true}>
                     Quản lý Link
                 </NavLink>
+                <NavLink to="/ai-support" activeClassName="active" exact={true}>
+                    AI Hỗ Trợ
+                </NavLink>
                 <NavLink to="/hdsd" activeClassName="active" exact={true}>
                     Hướng dẫn sử dụng
                 </NavLink>

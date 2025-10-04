@@ -5,6 +5,7 @@ import Nav from "./Nav/Nav";
 import View_page from "../pages/View_page";
 import DeviceInputForm from "../pages/Form";
 import LinkManager from "../pages/LinkManager";
+import AICustomerSupport from "../pages/AICustomerSupport";
 import ProtectedRoute from "../components/ProtectedRoute";
 import { AuthProvider } from "../auth/authContext";
 
@@ -29,6 +30,11 @@ function App() {
           <Route path="/link-manager" exact>
             <ProtectedRoute>
               <LinkManager />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/ai-support" exact>
+            <ProtectedRoute>
+              <AICustomerSupport />
             </ProtectedRoute>
           </Route>
           <Route path="/">

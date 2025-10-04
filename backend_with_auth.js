@@ -678,6 +678,125 @@ app.get('/api/links/stats', (req, res) => {
     });
 });
 
+// ==================== AI CUSTOMER SUPPORT API ====================
+
+// Cào dữ liệu HTML từ tài liệu (không dùng Google Docs API)
+const fetch = global.fetch || ((...args) => import('node-fetch').then(({default: f}) => f(...args)));
+
+/**
+ * Helper function: Extract document ID from Google Docs URL
+ */
+function extractDocumentId(url) {
+    const patterns = [
+        /\/document\/d\/([a-zA-Z0-9-_]+)/, // Google Docs
+        /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/, // Google Sheets
+        /\/presentation\/d\/([a-zA-Z0-9-_]+)/, // Google Slides
+        /\/forms\/d\/([a-zA-Z0-9-_]+)/ // Google Forms
+    ];
+    
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+            return match[1];
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Helper function: Extract text from Google Docs document
+ */
+function extractTextFromDocument(document) {
+    let text = '';
+    
+    function extractTextFromElement(element) {
+        if (element.textRun) {
+            text += element.textRun.content;
+        }
+        
+        if (element.paragraph) {
+            element.paragraph.elements?.forEach(extractTextFromElement);
+            text += '\n';
+        }
+        
+        if (element.table) {
+            element.table.tableRows?.forEach(row => {
+                row.tableCells?.forEach(cell => {
+                    cell.content?.forEach(extractTextFromElement);
+                    text += '\t';
+                });
+                text += '\n';
+            });
+        }
+    }
+    
+    document.body?.content?.forEach(extractTextFromElement);
+    return text.trim();
+}
+
+/**
+ * Helper function: Determine document type from URL
+ */
+function getDocumentType(url) {
+    if (url.includes('/document/d/')) return 'docs';
+    if (url.includes('/spreadsheets/d/')) return 'sheets';
+    if (url.includes('/presentation/d/')) return 'slides';
+    if (url.includes('/forms/d/')) return 'forms';
+    return 'docs'; // default
+}
+
+/**
+ * Helper: Extract text from raw HTML
+ */
+function extractTextFromHTML(html) {
+    return html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// API cào dữ liệu HTML từ URL
+app.post('/api/ai/scrape-document', authenticateToken, async (req, res) => {
+    const { documentUrl } = req.body;
+    if (!documentUrl) {
+        return res.status(400).json({ success: false, message: 'URL tài liệu không được để trống' });
+    }
+    try {
+        console.log(`[AI] Scrape document: ${documentUrl}`);
+        const response = await fetch(documentUrl, {
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'
+            }
+        });
+        if (!response.ok) {
+            return res.status(response.status).json({ success: false, message: `Fetch failed: ${response.statusText}` });
+        }
+        const html = await response.text();
+        const text = extractTextFromHTML(html);
+        if (!text) {
+            return res.status(400).json({ success: false, message: 'Không thể trích xuất nội dung' });
+        }
+        res.json({
+            success: true,
+            data: { documentUrl, content: text, contentLength: text.length, scrapedAt: new Date().toISOString() },
+            message: 'Cào dữ liệu tài liệu thành công'
+        });
+    } catch (error) {
+        console.error('[AI] Error scraping document:', error);
+        res.status(500).json({ success: false, message: `Lỗi khi cào dữ liệu: ${error.message}` });
+    }
+});
+
 // ==================== EXISTING API (giữ nguyên) ====================
 
 // Endpoint export data theo name
@@ -795,4 +914,6 @@ https.createServer(httpsoptions, app).listen(port, () => {
     console.log('  PATCH  /api/links/:id/favorite - Toggle favorite');
     console.log('  PATCH  /api/links/:id/access - Tăng access count');
     console.log('  GET    /api/links/stats - Thống kê');
+    console.log('AI Customer Support API endpoints:');
+    console.log('  POST   /api/ai/scrape-document - Cào dữ liệu HTML từ URL');
 });

@@ -25,7 +25,7 @@ const getActiveApiKey = () => {
 
 const getModelFor = (feature /* 'quick' | 'smart' */) => {
     const ls = getLocalStorage();
-    const defaultModel = 'gemini-flash-lite-latest';
+    const defaultModel = 'gemini-2.5-flash';
     if (!ls) return defaultModel;
     try {
         if (feature === 'quick') {
@@ -332,6 +332,46 @@ Trả lời bằng tiếng Việt, ngắn gọn, chỉ hiển thị thông tin q
         return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Không tìm thấy tài liệu nào phù hợp.';
     } catch (error) {
         console.error('Error in deep search:', error);
+        throw error;
+    }
+};
+
+/**
+ * Ask Gemini for customer support style answer with a provided prompt
+ * The prompt should already include company context and user question
+ */
+export const askCustomerSupport = async (prompt) => {
+    const apiKey = getActiveApiKey();
+    if (!apiKey) {
+        throw new Error('Gemini API key is not configured.');
+    }
+    const model = getModelFor('defaultModel');
+
+    try {
+        const url = buildApiUrl(model, apiKey);
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.7,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 12048,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`API error: ${errorData.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch (error) {
+        console.error('Error asking customer support:', error);
         throw error;
     }
 };
