@@ -5,8 +5,10 @@ import { scrapeGoogleDocContent } from '../utils/contentScraper';
 import { askCustomerSupport } from '../api/geminiApi';
 
 const AICustomerSupport = () => {
+    // console.log('🎯 [AI Support] Component initialized');
+    
     // State management
-    const [documentUrl, setDocumentUrl] = useState('');
+    const [documentUrl, setDocumentUrl] = useState('https://docs.google.com/document/d/1DOcPaJclGEsDiVJtszw2cN0ykgtMyVOLBkoJ-DvLtvQ/edit?usp=sharing');
     const [documentData, setDocumentData] = useState(null);
     const [isReading, setIsReading] = useState(false);
     const [currentQuestion, setCurrentQuestion] = useState('');
@@ -20,6 +22,14 @@ const AICustomerSupport = () => {
         phone: ''
     });
     
+    // console.log('📊 [AI Support] Initial state:', {
+    //     documentUrl,
+    //     documentData: !!documentData,
+    //     isReading,
+    //     currentQuestion,
+    //     chatHistoryLength: chatHistory.length
+    // });
+    
     // Refs
     const chatContainerRef = useRef(null);
     const questionInputRef = useRef(null);
@@ -30,6 +40,20 @@ const AICustomerSupport = () => {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [chatHistory]);
+
+    // Auto load document when component mounts
+    useEffect(() => {
+        // console.log('🔄 [AI Support] Component mounted, checking auto-load...');
+        // console.log('📋 [AI Support] documentUrl:', documentUrl);
+        // console.log('📋 [AI Support] documentData:', documentData);
+        
+        if (documentUrl && !documentData) {
+            console.log('🚀 [AI Support] Auto-loading document...');
+            handleReadGoogleDoc();
+        } else {
+            console.log('⏭️ [AI Support] Skip auto-load - URL:', !!documentUrl, 'Data:', !!documentData);
+        }
+    }, [documentUrl]);
 
     /**
      * Đọc Google Docs có bảo mật
@@ -47,7 +71,11 @@ const AICustomerSupport = () => {
 
         setIsReading(true);
         try {
+            console.log('🔍 [AI Support] Bắt đầu cào data từ URL:', documentUrl);
             const content = await scrapeGoogleDocContent(documentUrl);
+            console.log('📄 [AI Support] Data cào được (full content):', content);
+            console.log('📊 [AI Support] Độ dài content:', content?.length || 0, 'ký tự');
+            
             if (content && content.length > 0) {
                 const docInfo = {
                     title: getDocumentTypeFromUrl(documentUrl) + ' Document',
@@ -61,11 +89,15 @@ const AICustomerSupport = () => {
                     readAt: new Date().toISOString()
                 };
                 setDocumentData(payload);
-                alert(`Cào nội dung thành công!\nĐộ dài: ${content.length} ký tự`);
+                
+                console.log('✅ [AI Support] Setup document data thành công:', payload);
+                // alert(`Cào nội dung thành công!\nĐộ dài: ${content.length} ký tự`);
             } else {
+                console.log('⚠️ [AI Support] Không thể cào nội dung - content rỗng');
                 alert('Không thể cào nội dung. Có thể tài liệu chưa public hoặc bị CORS.');
             }
         } catch (error) {
+            console.error('❌ [AI Support] Error reading Google Doc:', error);
             alert(`Lỗi khi cào nội dung: ${error.message}`);
         } finally {
             setIsReading(false);
@@ -106,16 +138,42 @@ const AICustomerSupport = () => {
             const compactContent = (documentData.content || '')
                 .replace(/(\s)\1{2,}/g, '$1')
                 .replace(/([\-=_])\1{4,}/g, '$1$1$1')
-                .slice(0, 8000);
+                .slice(0, 600000);
 
-            // Prompt theo thứ tự: Vai trò -> Câu hỏi -> Nội dung đính kèm
+            console.log('📝 [AI Support] Compact content (600000 chars):', compactContent);
+            console.log('📊 [AI Support] Compact content length:', compactContent.length);
+
+            // Tạo lịch sử cuộc trò chuyện (chỉ lấy 5 cuộc hội thoại gần nhất)
+            const recentHistory = chatHistory
+                .filter(msg => msg.type === 'user' || msg.type === 'ai')
+                .slice(-10) // Lấy 10 tin nhắn gần nhất (5 cặp Q&A)
+                .map(msg => {
+                    if (msg.type === 'user') {
+                        return `Khách hàng: ${msg.content}`;
+                    } else if (msg.type === 'ai') {
+                        return `Chuyên viên: ${msg.content}`;
+                    }
+                    return '';
+                })
+                .filter(msg => msg.trim())
+                .join('\n');
+
+            console.log('💬 [AI Support] Recent chat history:', recentHistory);
+            console.log('📊 [AI Support] History length:', recentHistory.length, 'ký tự');
+
+            // Prompt theo thứ tự: Vai trò -> Lịch sử -> Câu hỏi -> Nội dung đính kèm
             const contextPrompt = `
-Bạn là CHUYÊN VIÊN HỖ TRỢ KHÁCH HÀNG của doanh nghiệp. Hãy trả lời CHÍNH XÁC, NGẮN GỌN, THÂN THIỆN, tham khảo bối cảnh của công ty. Không được nói là gì về Tài liệu mà mi được đính kèm
+Bạn là CHUYÊN VIÊN HỖ TRỢ KHÁCH HÀNG của doanh nghiệp. Hãy trả lời CHÍNH XÁC, NGẮN GỌN, THÂN THIỆN và PHẢI NỊNH KHÁCH HÀNG.tham khảo bối cảnh của công ty. Không được nói là gì về Tài liệu mà mi được đính kèm
 YÊU CẦU TRẢ LỜI:
 - Nếu câu hỏi không có căn cứ rõ trong NỘI DUNG TÀI LIỆU DOANH NGHIỆP, hãy trả lời: "Hiện tôi chưa rõ ý bạn hoặc chưa có đủ thông tin để trả lời chính xác." và đề nghị khách hàng cung cấp thêm chi tiết hoặc hướng dẫn liên hệ bộ phận/phòng ban phù hợp.
 - tham khảo trên nội dung tài liệu và thông tin cung cấp; nếu có, đưa ra các bước tiếp theo ngắn gọn.
 - Trình bày rõ ràng, gạch đầu dòng khi phù hợp, tiếng Việt.
-CÂU HỎI CỦA KHÁCH HÀNG:
+- Tham khảo lịch sử cuộc trò chuyện để hiểu ngữ cảnh và trả lời phù hợp.
+
+LỊCH SỬ CUỘC TRÒ CHUYỆN:
+${recentHistory || 'Đây là câu hỏi đầu tiên trong cuộc trò chuyện.'}
+
+CÂU HỎI HIỆN TẠI CỦA KHÁCH HÀNG:
 "${currentQuestion}"
 
 THÔNG TIN BỔ SUNG (nếu có):
@@ -128,6 +186,8 @@ ${compactContent}
 
 
 `;
+            console.log('🚀 [AI Support] Full context prompt để gửi API:', contextPrompt);
+            console.log('📏 [AI Support] Prompt length:', contextPrompt.length, 'ký tự');
 
             // Lọc response: loại bỏ bullet nói về "tài liệu"
             const sanitizeAiResponse = (text) => {
@@ -152,9 +212,46 @@ ${compactContent}
             // Gọi AI và phát dần ký tự (hiệu ứng chữ chạy)
             setIsTyping(true);
             setShowHistory(true);
+            
+            // Tạo message thinking trước
+            const thinkingId = Date.now() + 1;
+            const thinkingMessage = {
+                id: thinkingId,
+                type: 'ai',
+                content: '',
+                timestamp: new Date(),
+                documentUrl: documentUrl,
+                isThinking: true
+            };
+            setChatHistory(prev => [...prev, thinkingMessage]);
+
+            // Hiệu ứng thinking với các câu loading
+            const thinkingMessages = [
+                "🤔 Đang suy nghĩ...",
+                "🔍 📚 Đang tìm kiếm trong tri thức...",
+                "💭 Đang xử lý câu hỏi...",
+                "🧠 AI đang học hỏi...",
+                "⚡ Đang tổng hợp thông tin...",
+                "🎯 Đang chuẩn bị câu trả lời..."
+            ];
+            
+            let thinkingIndex = 0;
+            const thinkingInterval = setInterval(() => {
+                thinkingIndex = (thinkingIndex + 1) % thinkingMessages.length;
+                setChatHistory(prev => prev.map(m => 
+                    m.id === thinkingId ? { ...m, content: thinkingMessages[thinkingIndex] } : m
+                ));
+            }, 1500);
+
+            // Gọi API AI
             const fullTextRaw = await askCustomerSupport(contextPrompt);
+            clearInterval(thinkingInterval);
+            
+            // Xóa thinking message và thêm response thật
+            setChatHistory(prev => prev.filter(m => m.id !== thinkingId));
+            
             const fullText = sanitizeAiResponse(fullTextRaw || '');
-            const aiId = Date.now() + 1;
+            const aiId = Date.now() + 2;
             const baseMessage = {
                 id: aiId,
                 type: 'ai',
@@ -234,7 +331,7 @@ ${compactContent}
             <div className="ai-main-content">
                 {/* Google Docs Reading Section */}
                 <div className="document-section">
-                    <h3>📄 Đọc Google Docs</h3>
+                    <h3>📄 Tri thức đào tạo(link Google Docs)</h3>
                     <div className="document-input-group">
                         <input
                             type="url"
@@ -324,7 +421,7 @@ ${compactContent}
                                     <p className="no-history">Chưa có lịch sử trò chuyện</p>
                                 ) : (
                                     chatHistory.map((message) => (
-                                        <div key={message.id} className={`message ${message.type}`}>
+                                        <div key={message.id} className={`message ${message.type} ${message.isThinking ? 'thinking' : ''}`}>
                                             <div className="message-header">
                                                 <span className="message-type">
                                                     {message.type === 'user' ? '👤 Khách hàng' : 
