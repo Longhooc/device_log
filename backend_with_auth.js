@@ -269,49 +269,9 @@ app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), (req, 
 
 // ==================== LINK PERMISSIONS API ====================
 
-// 7. Lấy permissions của link
+// 7. Legacy: trả về payload tối giản, khuyến nghị dùng /permissions/users
 app.get('/api/links/:id/permissions', authenticateToken, (req, res) => {
-    const linkId = req.params.id;
-    
-    console.log(`[GET /api/links/${linkId}/permissions] Request from user:`, req.user.username, req.user.role);
-    
-    const sql = `
-        SELECT 
-            lp.allowed_roles,
-            lp.allow_manager_preview,
-            lp.allow_employee_preview,
-            lp.created_at,
-            lp.updated_at,
-            u.name as created_by_name
-        FROM link_permissions lp
-        LEFT JOIN users u ON lp.created_by = u.id
-        WHERE lp.link_id = ?
-    `;
-    
-    db.query(sql, [linkId], (err, results) => {
-        if (err) {
-            console.error('Lỗi khi lấy permissions:', err);
-            return res.status(500).json({ message: 'Lỗi hệ thống' });
-        }
-        
-        console.log(`[GET /api/links/${linkId}/permissions] Query results:`, results);
-        
-        if (results.length === 0) {
-            console.log(`[GET /api/links/${linkId}/permissions] No permissions found, returning default`);
-            // Trả về permissions mặc định an toàn nếu chưa có
-            return res.json({
-                allowed_roles: ['admin', 'director'],
-                allow_manager_preview: false,
-                allow_employee_preview: false,
-                created_at: null,
-                updated_at: null,
-                created_by_name: null
-            });
-        }
-        
-        console.log(`[GET /api/links/${linkId}/permissions] Returning permissions:`, results[0]);
-        res.json(results[0]);
-    });
+    return res.json({ allowed_roles: [], legacy: true });
 });
 
 // 8. Cập nhật permissions của link (chỉ admin)
@@ -355,31 +315,110 @@ app.put('/api/links/:id/permissions', authenticateToken, authorizeRole(['admin']
     });
 });
 
+// 8.1. Thêm user vào permissions của link (chỉ admin)
+app.post('/api/links/:id/permissions/users', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    const linkId = req.params.id;
+    const { user_id } = req.body;
+    
+    if (!user_id) {
+        return res.status(400).json({ message: 'Thiếu user_id' });
+    }
+    
+    console.log(`[POST /api/links/${linkId}/permissions/users] Adding user ${user_id}`);
+    
+    const sql = `
+        INSERT INTO link_user_permissions (link_id, user_id, created_by)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+        created_at = NOW()
+    `;
+    
+    db.query(sql, [linkId, user_id, req.user.userId], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi thêm user vào permissions:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        console.log(`[POST /api/links/${linkId}/permissions/users] User added successfully:`, result);
+        res.json({ message: 'Thêm user vào permissions thành công' });
+    });
+});
+
+// 8.2. Xóa user khỏi permissions của link (chỉ admin)
+app.delete('/api/links/:id/permissions/users/:userId', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    const linkId = req.params.id;
+    const userId = req.params.userId;
+    
+    console.log(`[DELETE /api/links/${linkId}/permissions/users/${userId}] Removing user`);
+    
+    const sql = 'DELETE FROM link_user_permissions WHERE link_id = ? AND user_id = ?';
+    
+    db.query(sql, [linkId, userId], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi xóa user khỏi permissions:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Không tìm thấy permission' });
+        }
+        
+        console.log(`[DELETE /api/links/${linkId}/permissions/users/${userId}] User removed successfully:`, result);
+        res.json({ message: 'Xóa user khỏi permissions thành công' });
+    });
+});
+
+// 8.3. Lấy danh sách users có quyền truy cập link
+app.get('/api/links/:id/permissions/users', authenticateToken, (req, res) => {
+    const linkId = req.params.id;
+    
+    console.log(`[GET /api/links/${linkId}/permissions/users] Getting users with access`);
+    
+    const sql = `
+        SELECT 
+            u.id,
+            u.username,
+            u.name,
+            u.role,
+            u.department,
+            u.email,
+            lup.created_at as permission_granted_at
+        FROM link_user_permissions lup
+        JOIN users u ON lup.user_id = u.id
+        WHERE lup.link_id = ? AND u.is_active = TRUE
+        ORDER BY lup.created_at DESC
+    `;
+    
+    db.query(sql, [linkId], (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy danh sách users:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        console.log(`[GET /api/links/${linkId}/permissions/users] Found ${results.length} users`);
+        res.json(results);
+    });
+});
+
 // 9. Kiểm tra quyền truy cập link
 app.get('/api/links/:id/access', authenticateToken, (req, res) => {
     const linkId = req.params.id;
     const userId = req.user.userId;
-    
-    const sql = 'CALL CheckLinkAccess(?, ?, @has_access, @can_preview)';
-    
-    db.query(sql, [userId, linkId], (err, results) => {
+    const userRole = req.user.role;
+
+    if (userRole === 'admin') {
+        return res.json({ has_access: true, can_preview: true });
+    }
+
+    const sql = 'SELECT 1 FROM link_user_permissions WHERE link_id = ? AND user_id = ? LIMIT 1';
+
+    db.query(sql, [linkId, userId], (err, results) => {
         if (err) {
             console.error('Lỗi khi kiểm tra quyền truy cập:', err);
             return res.status(500).json({ message: 'Lỗi hệ thống' });
         }
-        
-        // Lấy kết quả từ stored procedure
-        db.query('SELECT @has_access as has_access, @can_preview as can_preview', (err, results) => {
-            if (err) {
-                console.error('Lỗi khi lấy kết quả:', err);
-                return res.status(500).json({ message: 'Lỗi hệ thống' });
-            }
-            
-            res.json({
-                has_access: Boolean(results[0].has_access),
-                can_preview: Boolean(results[0].can_preview)
-            });
-        });
+        const hasAccess = results.length > 0;
+        return res.json({ has_access: hasAccess, can_preview: hasAccess });
     });
 });
 
@@ -388,7 +427,7 @@ app.get('/api/links/:id/access', authenticateToken, (req, res) => {
 /**
  * Helper function: Check if user has access to link based on permissions
  */
-function checkUserAccess(userRole, allowedRoles) {
+function checkUserAccess(userRole, userId, allowedRoles, linkId) {
     // Admin luôn có quyền
     if (userRole === 'admin') return true;
     
@@ -404,10 +443,16 @@ function checkUserAccess(userRole, allowedRoles) {
     }
     
     // Kiểm tra role có trong danh sách không
-    return Array.isArray(roles) && roles.includes(userRole);
+    const hasRoleAccess = Array.isArray(roles) && roles.includes(userRole);
+    
+    // Kiểm tra user có trong danh sách permissions cụ thể không
+    // TODO: Implement user-specific permission check
+    // const hasUserAccess = checkUserSpecificAccess(userId, linkId);
+    
+    return hasRoleAccess;
 }
 
-// 1. Lấy tất cả links với permission filtering
+// 1. Lấy tất cả links với account-based permission filtering
 app.get('/api/links', authenticateToken, (req, res) => {
     const { department, type, search, favorite } = req.query;
     const userRole = req.user.role;
@@ -415,18 +460,25 @@ app.get('/api/links', authenticateToken, (req, res) => {
     
     console.log(`\n[GET /api/links] Request from user: ${req.user.username} (${userRole})`);
     
-    // Query để lấy links và permissions
+    // Query: include user-specific permission join
     let sql = `
         SELECT 
-            gl.*,
-            lp.allowed_roles,
-            lp.allow_manager_preview,
-            lp.allow_employee_preview
+            gl.id,
+            gl.title,
+            gl.url,
+            gl.department,
+            gl.type,
+            gl.description,
+            gl.created_at,
+            gl.created_by,
+            gl.is_active,
+            CASE WHEN lup.user_id IS NULL THEN 0 ELSE 1 END AS has_user_access
         FROM google_links gl
-        LEFT JOIN link_permissions lp ON gl.id = lp.link_id
+        LEFT JOIN link_user_permissions lup 
+            ON gl.id = lup.link_id AND lup.user_id = ?
         WHERE gl.is_active = 1
     `;
-    const params = [];
+    const params = [userId];
     
     // Lọc theo phòng ban
     if (department && department !== 'all') {
@@ -461,22 +513,20 @@ app.get('/api/links', authenticateToken, (req, res) => {
         
         console.log(`[GET /api/links] Found ${results.length} links in database`);
         
-        // Filter URL based on permissions
+        // Filter URL based on account-based permissions only
         const filteredResults = results.map(link => {
-            // Default permissions nếu không có
-            const allowedRoles = link.allowed_roles || JSON.stringify(['admin', 'director']);
-            const hasAccess = checkUserAccess(userRole, allowedRoles);
+            const hasAccess = userRole === 'admin' || Boolean(link.has_user_access);
             
             // Nếu không có quyền: MASK URL = null
             if (!hasAccess) {
-                console.log(`  ❌ User ${userRole} NO ACCESS to link ${link.id}: ${link.title} - URL masked`);
+                console.log(`  ❌ User (${userId}) NO ACCESS to link ${link.id}: ${link.title} - URL masked`);
                 return {
                     ...link,
                     url: null, // MASK URL cho links không có quyền
                     _restricted: true // Flag để frontend biết
                 };
             } else {
-                console.log(`  ✅ User ${userRole} HAS ACCESS to link ${link.id}: ${link.title}`);
+                console.log(`  ✅ User (${userId}) HAS ACCESS to link ${link.id}: ${link.title}`);
                 return {
                     ...link,
                     _restricted: false
@@ -490,23 +540,31 @@ app.get('/api/links', authenticateToken, (req, res) => {
     });
 });
 
-// 2. Lấy link theo ID với permission filtering
+// 2. Lấy link theo ID với account-based permission filtering
 app.get('/api/links/:id', authenticateToken, (req, res) => {
     const id = req.params.id;
     const userRole = req.user.role;
+    const userId = req.user.userId;
     
     const sql = `
         SELECT 
-            gl.*,
-            lp.allowed_roles,
-            lp.allow_manager_preview,
-            lp.allow_employee_preview
+            gl.id,
+            gl.title,
+            gl.url,
+            gl.department,
+            gl.type,
+            gl.description,
+            gl.created_at,
+            gl.created_by,
+            gl.is_active,
+            CASE WHEN lup.user_id IS NULL THEN 0 ELSE 1 END AS has_user_access
         FROM google_links gl
-        LEFT JOIN link_permissions lp ON gl.id = lp.link_id
+        LEFT JOIN link_user_permissions lup 
+            ON gl.id = lup.link_id AND lup.user_id = ?
         WHERE gl.id = ? AND gl.is_active = 1
     `;
     
-    db.query(sql, [id], (err, results) => {
+    db.query(sql, [userId, id], (err, results) => {
         if (err) {
             console.error('Lỗi khi lấy link:', err);
             return res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
@@ -517,12 +575,11 @@ app.get('/api/links/:id', authenticateToken, (req, res) => {
         }
         
         const link = results[0];
-        const allowedRoles = link.allowed_roles || JSON.stringify(['admin', 'director']);
-        const hasAccess = checkUserAccess(userRole, allowedRoles);
+        const hasAccess = userRole === 'admin' || Boolean(link.has_user_access);
         
         // Nếu không có quyền: MASK URL
         if (!hasAccess) {
-            console.log(`[GET /api/links/${id}] User ${userRole} NO ACCESS - URL masked`);
+            console.log(`[GET /api/links/${id}] User (${req.user.userId}) NO ACCESS - URL masked`);
             return res.json({
                 ...link,
                 url: null,
@@ -530,7 +587,7 @@ app.get('/api/links/:id', authenticateToken, (req, res) => {
             });
         }
         
-        console.log(`[GET /api/links/${id}] User ${userRole} HAS ACCESS`);
+        console.log(`[GET /api/links/${id}] User (${req.user.userId}) HAS ACCESS`);
         res.json({
             ...link,
             _restricted: false
@@ -539,28 +596,89 @@ app.get('/api/links/:id', authenticateToken, (req, res) => {
 });
 
 // 3. Thêm link mới
-app.post('/api/links', (req, res) => {
-    const { title, url, department, type, description, created_by } = req.body;
-    
+app.post('/api/links', authenticateToken, (req, res) => {
+    const { title, url, department, type, description } = req.body;
+    const createdById = req.user && req.user.userId ? req.user.userId : null;
+
     // Validation
     if (!title || !url || !department || !type) {
         return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
     }
-    
-    const sql = `INSERT INTO google_links 
-                 (title, url, department, type, description, created_by) 
-                 VALUES (?, ?, ?, ?, ?, ?)`;
-    
-    db.query(sql, [title, url, department, type, description, created_by], (err, result) => {
+
+    // Transaction: insert link, then auto-grant permissions to all users in department
+    db.beginTransaction(err => {
         if (err) {
-            console.error('Lỗi khi thêm link:', err);
-            res.status(500).json({ message: 'Lỗi khi thêm link', error: err.message });
-        } else {
-            res.status(201).json({ 
-                message: 'Thêm link thành công', 
-                id: result.insertId 
-            });
+            console.error('Lỗi khi bắt đầu transaction:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
         }
+
+        const insertLinkSql = `INSERT INTO google_links 
+                               (title, url, department, type, description, created_by) 
+                               VALUES (?, ?, ?, ?, ?, ?)`;
+
+        db.query(insertLinkSql, [title, url, department, type, description, createdById], (err, result) => {
+            if (err) {
+                console.error('Lỗi khi thêm link:', err);
+                return db.rollback(() => {
+                    res.status(500).json({ message: 'Lỗi khi thêm link', error: err.message });
+                });
+            }
+
+            const linkId = result.insertId;
+
+            // Auto grant: all active users in the same department get access
+            const selectUsersSql = `SELECT id FROM users WHERE is_active = TRUE AND department = ?`;
+
+            db.query(selectUsersSql, [department], (err, users) => {
+                if (err) {
+                    console.error('Lỗi khi lấy danh sách user theo phòng ban:', err);
+                    return db.rollback(() => {
+                        res.status(500).json({ message: 'Lỗi hệ thống' });
+                    });
+                }
+
+                if (!users || users.length === 0) {
+                    // No users to grant, just commit
+                    return db.commit(commitErr => {
+                        if (commitErr) {
+                            console.error('Lỗi khi commit transaction:', commitErr);
+                            return db.rollback(() => {
+                                res.status(500).json({ message: 'Lỗi hệ thống' });
+                            });
+                        }
+                        res.status(201).json({ message: 'Thêm link thành công', id: linkId });
+                    });
+                }
+
+                const values = users.map(u => [linkId, u.id, createdById || u.id]);
+                const insertPermSql = `INSERT INTO link_user_permissions (link_id, user_id, created_by)
+                                       VALUES ?
+                                       ON DUPLICATE KEY UPDATE updated_at = NOW()`;
+
+                db.query(insertPermSql, [values], (err) => {
+                    if (err) {
+                        console.error('Lỗi khi cấp quyền mặc định cho user:', err);
+                        return db.rollback(() => {
+                            res.status(500).json({ message: 'Lỗi hệ thống' });
+                        });
+                    }
+
+                    db.commit(commitErr => {
+                        if (commitErr) {
+                            console.error('Lỗi khi commit transaction:', commitErr);
+                            return db.rollback(() => {
+                                res.status(500).json({ message: 'Lỗi hệ thống' });
+                            });
+                        }
+
+                        res.status(201).json({ 
+                            message: 'Thêm link thành công (đã cấp quyền cho phòng ban)', 
+                            id: linkId 
+                        });
+                    });
+                });
+            });
+        });
     });
 });
 

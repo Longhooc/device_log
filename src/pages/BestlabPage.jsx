@@ -1,38 +1,29 @@
 import React, { useState } from 'react';
-import './LinkManager.scss';
+import './BestlabPage.scss';
 
 // Hooks
 import { useSettings } from '../hooks/useSettings';
 import { useLinks } from '../hooks/useLinks';
-import { useGeminiAI } from '../hooks/useGeminiAI';
 import { useAuth } from '../auth/authContext';
 
 // Components
 import SettingsPanel from '../components/SettingsPanel';
 import AddLinkForm from '../components/AddLinkForm';
-import QuickAskForm from '../components/QuickAskForm';
-import DeepSearchForm from '../components/DeepSearchForm';
 import LinkCard from '../components/LinkCard';
 import PreviewModal from '../components/PreviewModal';
-import GeminiResponse from '../components/GeminiResponse';
 import UserProfile from '../components/UserProfile';
 import AdminPanel from '../components/AdminPanel';
 
 // Utils
 import { convertToEmbedUrl } from '../utils/textUtils';
 
-function LinkManager() {
+function BestlabPage() {
     // State management
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDepartment, setSelectedDepartment] = useState('all');
     const [showAddForm, setShowAddForm] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
-    const [showQuickAsk, setShowQuickAsk] = useState(false);
-    const [showDeepSearch, setShowDeepSearch] = useState(false);
     const [showAdminPanel, setShowAdminPanel] = useState(false);
-    const [quickQuestion, setQuickQuestion] = useState('');
-    const [deepSearchPrompt, setDeepSearchPrompt] = useState('');
-    const [deepSearchDepartment, setDeepSearchDepartment] = useState('all');
     const [previewUrl, setPreviewUrl] = useState(null);
     const [showPreview, setShowPreview] = useState(false);
     const [newLink, setNewLink] = useState({
@@ -47,7 +38,6 @@ function LinkManager() {
     const { user, hasPermission, canAccessLink, canPreviewLink } = useAuth();
     const settings = useSettings();
     const links = useLinks();
-    const gemini = useGeminiAI(canAccessLink, user);
 
     // Constants
     const departments = [
@@ -139,37 +129,8 @@ function LinkManager() {
         setPreviewUrl(null);
     };
 
-    const handleQuickAsk = async () => {
-        await gemini.askQuickQuestion(links.links, quickQuestion, settings.privacyFilters);
-        setQuickQuestion('');
-        setShowQuickAsk(false);
-    };
-
-    const handleDeepSearch = async () => {
-        const success = await gemini.handleDeepSearch(
-            links.links, 
-            departments, 
-            deepSearchPrompt, 
-            deepSearchDepartment,
-            settings.privacyFilters
-        );
-        
-        if (success) {
-            setShowDeepSearch(false);
-            setDeepSearchPrompt('');
-        }
-    };
-
     return (
-        <div className="link-manager">
-            {/* Gemini Error Alert */}
-            {gemini.geminiError && (
-                <div className="gemini-alert">
-                    <strong>⚠️ Lỗi:</strong>
-                    <span>{` ${gemini.geminiError}`}</span>
-                </div>
-            )}
-
+        <div className="bestlab-page">
             {/* Admin Panel */}
             {showAdminPanel && (
                 <AdminPanel />
@@ -200,8 +161,8 @@ function LinkManager() {
             <div className="header">
                 <div className="header-content">
                     <div className="header-text">
-                        <h1>🔗 Quản lý Link Google Docs/Sheets</h1>
-                        <p>Tập trung hóa tất cả các link Google Form, Sheet, Doc của các phòng ban</p>
+                        <h1>🧪 BESTLAB - Quản lý Link</h1>
+                        <p>Tập trung hóa các link Google Form, Sheet, Doc của BESTLAB (không có AI tra cứu)</p>
                         {process.env.NODE_ENV === 'development' && (
                             <small style={{color: '#999', fontSize: '12px'}}>
                                 Debug: {links.links.length} links từ API
@@ -254,20 +215,6 @@ function LinkManager() {
                     >
                         ➕ Thêm Link
                     </button>
-                    
-                    <button
-                        className="btn-secondary"
-                        onClick={() => setShowQuickAsk(!showQuickAsk)}
-                    >
-                        ❓ Tra cứu nhanh AI
-                    </button>
-
-                    <button
-                        className="btn-deep-search"
-                        onClick={() => setShowDeepSearch(!showDeepSearch)}
-                    >
-                        🎯 Tìm kiếm chuyên sâu (duyệt file AI phân tích)
-                    </button>
 
                     <button
                         className="btn-settings"
@@ -277,18 +224,6 @@ function LinkManager() {
                     </button>
                 </div>
             </div>
-
-            {/* Gemini Response */}
-            {!gemini.isLoadingGemini && gemini.displayedLines.length > 0 && (
-                <GeminiResponse
-                    displayedLines={gemini.displayedLines}
-                    onPreview={handlePreview}
-                    onClose={gemini.clearResponse}
-                    linksWithPermissions={linksWithPermissions.filter(link => link.url !== null)}
-                    canAccessLink={canAccessLink}
-                    canPreviewLink={canPreviewLink}
-                />
-            )}
 
             {/* Add Link Form */}
             {showAddForm && (
@@ -300,43 +235,6 @@ function LinkManager() {
                     onSubmit={handleAddLink}
                     onCancel={() => setShowAddForm(false)}
                 />
-            )}
-
-            {/* Quick Ask Form */}
-            {showQuickAsk && (
-                <QuickAskForm
-                    quickQuestion={quickQuestion}
-                    isLoading={gemini.isLoadingGemini}
-                    onChange={setQuickQuestion}
-                    onSubmit={handleQuickAsk}
-                    onClose={() => setShowQuickAsk(false)}
-                />
-            )}
-
-            {/* Deep Search Form */}
-            {showDeepSearch && (
-                <DeepSearchForm
-                    deepSearchPrompt={deepSearchPrompt}
-                    deepSearchDepartment={deepSearchDepartment}
-                    departments={departments}
-                    isLoading={gemini.isLoadingGemini}
-                    onPromptChange={setDeepSearchPrompt}
-                    onDepartmentChange={setDeepSearchDepartment}
-                    onSubmit={handleDeepSearch}
-                    onClose={() => {
-                        setShowDeepSearch(false);
-                        setDeepSearchPrompt('');
-                        setDeepSearchDepartment('all');
-                    }}
-                />
-            )}
-
-            {/* Loading Indicator */}
-            {gemini.isLoadingGemini && (
-                <div className="thinking">
-                    <div className="spinner"></div>
-                    <p>{gemini.analyzingProgress || '🤔 Đang suy nghĩ...'}</p>
-                </div>
             )}
 
             {/* Stats */}
@@ -416,4 +314,4 @@ function LinkManager() {
     );
 }
 
-export default LinkManager;
+export default BestlabPage;

@@ -6,6 +6,9 @@ import View_page from "../pages/View_page";
 import DeviceInputForm from "../pages/Form";
 import LinkManager from "../pages/LinkManager";
 import AICustomerSupport from "../pages/AICustomerSupport";
+import SmartphPage from "../pages/SmartphPage";
+import BestlabPage from "../pages/BestlabPage";
+import DeviceManagement from "../pages/DeviceManagement";
 import ProtectedRoute from "../components/ProtectedRoute";
 import { AuthProvider } from "../auth/authContext";
 
@@ -24,7 +27,7 @@ function App() {
         <Switch>
           <Route path="/home" exact>
             <ProtectedRoute>
-              <View_page />
+              <AICustomerSupport />
             </ProtectedRoute>
           </Route>
           <Route path="/link-manager" exact>
@@ -32,14 +35,24 @@ function App() {
               <LinkManager />
             </ProtectedRoute>
           </Route>
-          <Route path="/ai-support" exact>
+          <Route path="/smartph" exact>
             <ProtectedRoute>
-              <AICustomerSupport />
+              <SmartphPage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/bestlab" exact>
+            <ProtectedRoute>
+              <BestlabPage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/device-management" exact>
+            <ProtectedRoute>
+              <DeviceManagement />
             </ProtectedRoute>
           </Route>
           <Route path="/">
             <ProtectedRoute>
-              <DeviceInputForm />
+              <AICustomerSupport />
             </ProtectedRoute>
           </Route>
         </Switch>

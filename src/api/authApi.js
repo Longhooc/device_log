@@ -131,49 +131,7 @@ export const deleteUser = async (userId) => {
     }
 };
 
-/**
- * Lấy permissions của link
- * @param {number} linkId - ID của link
- * @returns {Promise<Object>} - Permissions của link
- */
-export const getLinkPermissions = async (linkId) => {
-    try {
-        const token = localStorage.getItem('authToken');
-        const response = await axios.get(`${API_BASE_URL}/api/links/${linkId}/permissions`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        return response.data;
-    } catch (error) {
-        console.error('Get link permissions error:', error);
-        throw error;
-    }
-};
-
-/**
- * Cập nhật permissions của link (chỉ admin)
- * @param {number} linkId - ID của link
- * @param {Object} permissions - Permissions mới
- * @returns {Promise<Object>} - Kết quả cập nhật
- */
-export const updateLinkPermissions = async (linkId, permissions) => {
-    try {
-        const token = localStorage.getItem('authToken');
-        const response = await axios.put(`${API_BASE_URL}/api/links/${linkId}/permissions`, permissions, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        return response.data;
-    } catch (error) {
-        console.error('Update link permissions error:', error);
-        throw error;
-    }
-};
+// Permissions (role-based) đã bị loại bỏ – không còn export API cũ
 
 /**
  * Kiểm tra quyền truy cập link
@@ -192,6 +150,71 @@ export const checkLinkAccess = async (linkId) => {
         return response.data;
     } catch (error) {
         console.error('Check link access error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Lấy danh sách users có quyền truy cập link
+ * @param {number} linkId - ID của link
+ * @returns {Promise<Array>} - Danh sách users
+ */
+export const getLinkPermissionUsers = async (linkId) => {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await axios.get(`${API_BASE_URL}/api/links/${linkId}/permissions/users`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error getting link permission users:', error);
+        throw error;
+    }
+};
+
+/**
+ * Thêm tài khoản vào permissions của link
+ * @param {number} linkId - ID của link
+ * @param {number} userId - ID của user
+ * @returns {Promise<Object>} - Kết quả thêm
+ */
+export const addUserToLinkPermissions = async (linkId, userId) => {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await axios.post(`${API_BASE_URL}/api/links/${linkId}/permissions/users`, {
+            user_id: userId
+        }, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error adding user to link permissions:', error);
+        throw error;
+    }
+};
+
+/**
+ * Xóa tài khoản khỏi permissions của link
+ * @param {number} linkId - ID của link
+ * @param {number} userId - ID của user
+ * @returns {Promise<Object>} - Kết quả xóa
+ */
+export const removeUserFromLinkPermissions = async (linkId, userId) => {
+    try {
+        const token = localStorage.getItem('authToken');
+        const response = await axios.delete(`${API_BASE_URL}/api/links/${linkId}/permissions/users/${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error removing user from link permissions:', error);
         throw error;
     }
 };

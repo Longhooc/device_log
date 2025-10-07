@@ -2,7 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/authContext';
 import { USER_ROLES } from '../auth/authContext';
 import { useLinks } from '../hooks/useLinks';
-import { getAllUsers, createUser, deleteUser, updateLinkPermissions, getLinkPermissions } from '../api/authApi';
+import { 
+    getAllUsers, 
+    createUser, 
+    deleteUser, 
+    addUserToLinkPermissions,
+    removeUserFromLinkPermissions,
+    getLinkPermissionUsers
+} from '../api/authApi';
 import './AdminPanel.scss';
 
 function AdminPanel() {
@@ -10,11 +17,10 @@ function AdminPanel() {
     const links = useLinks();
     const [activeTab, setActiveTab] = useState('users');
     const [users, setUsers] = useState([]);
-    const [linkPermissions, setLinkPermissions] = useState([]);
     const [showAddUser, setShowAddUser] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [hasChanges, setHasChanges] = useState(false);
-    const [showInactiveUsers, setShowInactiveUsers] = useState(false);
+    const [selectedLinkId, setSelectedLinkId] = useState(null);
+    const [linkPermissionUsers, setLinkPermissionUsers] = useState([]);
     const [newUser, setNewUser] = useState({
         username: '',
         password: '',
@@ -43,67 +49,16 @@ function AdminPanel() {
         loadUsers();
     }, []);
 
-    // Reload link permissions function
-    const reloadLinkPermissions = async () => {
+    // Load users có quyền truy cập link cụ thể
+    const loadLinkPermissionUsers = async (linkId) => {
         try {
-            const permissionsFromAPI = await Promise.all(
-                links.links.map(async (link) => {
-                    try {
-                        const perms = await getLinkPermissions(link.id);
-                        
-                        // Parse allowed_roles nếu là string JSON
-                        let allowedRoles = perms.allowed_roles;
-                        console.log(`[AdminPanel] Raw allowedRoles for link ${link.id}:`, {
-                            value: allowedRoles,
-                            type: typeof allowedRoles
-                        });
-                        
-                        if (typeof allowedRoles === 'string') {
-                            try {
-                                allowedRoles = JSON.parse(allowedRoles);
-                                console.log(`[AdminPanel] ✅ Parsed allowedRoles for link ${link.id}:`, allowedRoles);
-                            } catch (e) {
-                                console.error(`[AdminPanel] ❌ Failed to parse allowedRoles for link ${link.id}:`, e);
-                                allowedRoles = [USER_ROLES.ADMIN, USER_ROLES.DIRECTOR];
-                            }
-                        }
-                        if (!Array.isArray(allowedRoles)) {
-                            console.warn(`[AdminPanel] ⚠️ allowedRoles not array for link ${link.id}, using default`);
-                            allowedRoles = [USER_ROLES.ADMIN, USER_ROLES.DIRECTOR];
-                        }
-                        
-                        return {
-                            id: link.id,
-                            linkTitle: link.title,
-                            department: link.department,
-                            allowedRoles: allowedRoles
-                        };
-                    } catch (error) {
-                        console.error(`Error loading permissions for link ${link.id}:`, error);
-                        // Trả về permissions mặc định an toàn nếu lỗi
-                        return {
-                            id: link.id,
-                            linkTitle: link.title,
-                            department: link.department,
-                            allowedRoles: [USER_ROLES.ADMIN, USER_ROLES.DIRECTOR]
-                        };
-                    }
-                })
-            );
-            
-            setLinkPermissions(permissionsFromAPI);
+            const users = await getLinkPermissionUsers(linkId);
+            setLinkPermissionUsers(users);
         } catch (error) {
-            console.error('Error reloading link permissions:', error);
+            console.error('Error loading link permission users:', error);
+            setLinkPermissionUsers([]);
         }
     };
-
-    // Load link permissions từ API
-    useEffect(() => {
-        if (links.links.length > 0) {
-            reloadLinkPermissions();
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [links.links]);
 
     // Kiểm tra quyền admin
     if (!hasPermission('canAccessAdminPanel')) {
@@ -194,63 +149,39 @@ function AdminPanel() {
         }
     };
 
-    const handleRoleToggle = (linkId, newRoles) => {
-        setLinkPermissions(prev =>
-            prev.map(permission =>
-                permission.id === linkId
-                    ? { ...permission, allowedRoles: newRoles }
-                    : permission
-            )
-        );
-        setHasChanges(true);
-    };
-
-    const handleUpdateLinkPermission = (linkId, field, value) => {
-        setLinkPermissions(permissions => 
-            permissions.map(permission => 
-                permission.id === linkId 
-                    ? { ...permission, [field]: value }
-                    : permission
-            )
-        );
-        setHasChanges(true);
-    };
-
-    const handleSaveAllPermissions = async () => {
+    const handleAddUserToLink = async (linkId, userId) => {
         try {
             setIsLoading(true);
-            
-            console.log('[AdminPanel] Saving permissions for all links:', linkPermissions);
-            
-            // Lưu tất cả permissions đã thay đổi
-            const promises = linkPermissions.map(permission => {
-                console.log(`[AdminPanel] Updating link ${permission.id}:`, {
-                    allowed_roles: permission.allowedRoles
-                });
-                
-                return updateLinkPermissions(permission.id, {
-                    allowed_roles: permission.allowedRoles,
-                    allow_manager_preview: 1,  // Always 1 (simplified)
-                    allow_employee_preview: 1   // Always 1 (simplified)
-                });
-            });
-
-            const results = await Promise.all(promises);
-            console.log('[AdminPanel] All permissions updated:', results);
-
-            // Reload permissions từ API để đảm bảo dữ liệu đồng bộ
-            console.log('[AdminPanel] Reloading permissions from API...');
-            await reloadLinkPermissions();
-            console.log('[AdminPanel] Permissions reloaded successfully');
-
-            setHasChanges(false);
-            alert('Đã lưu tất cả thay đổi quyền truy cập!');
+            await addUserToLinkPermissions(linkId, userId);
+            await loadLinkPermissionUsers(linkId);
+            alert('Thêm quyền truy cập thành công!');
         } catch (error) {
-            console.error('[AdminPanel] Error updating permissions:', error);
-            alert('Lỗi khi cập nhật quyền truy cập: ' + (error.response?.data?.message || error.message));
+            console.error('Error adding user to link permissions:', error);
+            alert('Lỗi khi thêm quyền truy cập: ' + (error.response?.data?.message || error.message));
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleRemoveUserFromLink = async (linkId, userId) => {
+        if (window.confirm('Bạn có chắc chắn muốn xóa quyền truy cập này?')) {
+            try {
+                setIsLoading(true);
+                await removeUserFromLinkPermissions(linkId, userId);
+                await loadLinkPermissionUsers(linkId);
+                alert('Xóa quyền truy cập thành công!');
+            } catch (error) {
+                console.error('Error removing user from link permissions:', error);
+                alert('Lỗi khi xóa quyền truy cập: ' + (error.response?.data?.message || error.message));
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    };
+
+    const handleLinkSelect = async (linkId) => {
+        setSelectedLinkId(linkId);
+        await loadLinkPermissionUsers(linkId);
     };
 
     return (
@@ -447,60 +378,97 @@ function AdminPanel() {
                 <div className="permissions-tab">
                     <div className="tab-header">
                         <h2>Quyền truy cập link</h2>
-                        <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-                            <p>Cấu hình quyền truy cập cho từng link (tick để cho phép mở và xem link)</p>
-                            <button 
-                                className={`btn-primary ${hasChanges ? 'btn-highlight' : ''}`}
-                                onClick={handleSaveAllPermissions}
-                                disabled={isLoading || !hasChanges}
-                                style={{marginLeft: 'auto'}}
-                            >
-                                {isLoading ? '💾 Đang lưu...' : hasChanges ? '💾 Lưu tất cả thay đổi' : '✓ Đã lưu'}
-                            </button>
-                        </div>
+                        <p>Chọn link và quản lý quyền truy cập ngay bên cạnh</p>
                     </div>
 
-                    <div className="permissions-table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Link</th>
-                                    <th>Vai trò được phép truy cập (Mở & Xem)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {linkPermissions.map(permission => (
-                                    <tr key={permission.id}>
-                                        <td>
-                                            <div className="link-info">
-                                                <div className="link-title">{permission.linkTitle}</div>
+                    <div className="permissions-layout">
+                        {/* Left: Link list */}
+                        <div className="permissions-left">
+                            <div className="link-selection">
+                                <div className="links-grid">
+                                    {links.links.map(link => (
+                                        <div 
+                                            key={link.id}
+                                            className={`link-card ${selectedLinkId === link.id ? 'selected' : ''}`}
+                                            onClick={() => handleLinkSelect(link.id)}
+                                        >
+                                            <h4>{link.title}</h4>
+                                            <p>{link.department}</p>
+                                            <span className="link-type">{link.type}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right: Permission panel */}
+                        <div className="permissions-right">
+                            <div className="permission-management">
+                                <h3>{selectedLinkId ? 'Quản lý quyền truy cập' : 'Chọn một link để quản lý quyền'}</h3>
+
+                                {selectedLinkId && (
+                                    <>
+                                        <div className="add-user-section">
+                                            <h4>Thêm tài khoản có quyền truy cập:</h4>
+                                            <div className="user-selector">
+                                                <select 
+                                                    onChange={(e) => {
+                                                        if (e.target.value) {
+                                                            handleAddUserToLink(selectedLinkId, e.target.value);
+                                                            e.target.value = '';
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="">Chọn tài khoản để thêm quyền...</option>
+                                                    {users
+                                                        .filter(u => !linkPermissionUsers.some(pu => pu.id === u.id))
+                                                        .map(user => (
+                                                            <option key={user.id} value={user.id}>
+                                                                {user.name} (@{user.username}) - {getRoleDisplayName(user.role)}
+                                                            </option>
+                                                        ))
+                                                    }
+                                                </select>
                                             </div>
-                                        </td>
-                                        <td>
-                                            <div className="role-checkboxes">
-                                                {Object.values(USER_ROLES).map(role => (
-                                                    <label key={role} className="role-checkbox">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={permission.allowedRoles.includes(role)}
-                                                            onChange={(e) => {
-                                                                const newRoles = e.target.checked
-                                                                    ? [...permission.allowedRoles, role]
-                                                                    : permission.allowedRoles.filter(r => r !== role);
-                                                                handleRoleToggle(permission.id, newRoles);
-                                                            }}
-                                                        />
-                                                        <span className={`role-badge role-${role}`}>
-                                                            {getRoleIcon(role)} {getRoleDisplayName(role)}
-                                                        </span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+
+                                        <div className="current-permissions">
+                                            <h4>Tài khoản hiện có quyền truy cập:</h4>
+                                            {linkPermissionUsers.length === 0 ? (
+                                                <p className="no-permissions">Chưa có tài khoản nào được cấp quyền truy cập</p>
+                                            ) : (
+                                                <div className="permission-users-list">
+                                                    {linkPermissionUsers.map(permissionUser => (
+                                                        <div key={permissionUser.id} className="permission-user-item">
+                                                            <div className="user-info">
+                                                                <span className="user-icon">{getRoleIcon(permissionUser.role)}</span>
+                                                                <div>
+                                                                    <div className="user-name">{permissionUser.name}</div>
+                                                                    <div className="user-username">@{permissionUser.username}</div>
+                                                                    <div className="user-role">{getRoleDisplayName(permissionUser.role)}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="permission-info">
+                                                                <span className="granted-date">
+                                                                    Cấp quyền: {new Date(permissionUser.permission_granted_at).toLocaleDateString('vi-VN')}
+                                                                </span>
+                                                            </div>
+                                                            <button 
+                                                                className="btn-danger btn-sm"
+                                                                onClick={() => handleRemoveUserFromLink(selectedLinkId, permissionUser.id)}
+                                                                disabled={isLoading}
+                                                            >
+                                                                Xóa quyền
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

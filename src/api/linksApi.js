@@ -55,45 +55,8 @@ export const fetchLinks = async (filters = {}) => {
         
         const links = await response.json();
         
-        // Thêm permissions cho mỗi link
-        const linksWithPermissions = await Promise.all(
-            links.map(async (link) => {
-                try {
-                    const permissionsResponse = await fetch(`${API_BASE_URL}/api/links/${link.id}/permissions`, {
-                        headers: createAuthHeaders()
-                    });
-                    
-                    if (permissionsResponse.ok) {
-                        const permissions = await permissionsResponse.json();
-                        console.log(`[linksApi] Fetched permissions for link ${link.id}:`, permissions);
-                        return { ...link, permissions };
-                    } else {
-                        console.warn(`[linksApi] Failed to fetch permissions for link ${link.id}, status:`, permissionsResponse.status);
-                        // Nếu không có permissions, backend sẽ trả về default an toàn
-                        return { 
-                            ...link, 
-                            permissions: {
-                                allowedRoles: ['admin', 'director'],
-                                allowManagerPreview: false,
-                                allowEmployeePreview: false
-                            }
-                        };
-                    }
-                } catch (error) {
-                    console.error(`[linksApi] Error fetching permissions for link ${link.id}:`, error);
-                    return { 
-                        ...link, 
-                        permissions: {
-                            allowedRoles: ['admin', 'director'],
-                            allowManagerPreview: false,
-                            allowEmployeePreview: false
-                        }
-                    };
-                }
-            })
-        );
-        
-        return linksWithPermissions;
+        // Không còn gọi permissions legacy; backend đã mask URL theo account-based
+        return links;
     } catch (error) {
         console.error('Error fetching links:', error);
         throw error;
@@ -120,20 +83,7 @@ export const fetchLinkById = async (id) => {
         
         const link = await response.json();
         
-        // Lấy permissions
-        try {
-            const permissionsResponse = await fetch(`${API_BASE_URL}/api/links/${id}/permissions`, {
-                headers: createAuthHeaders()
-            });
-            
-            if (permissionsResponse.ok) {
-                const permissions = await permissionsResponse.json();
-                return { ...link, permissions };
-            }
-        } catch (error) {
-            console.error('Error fetching permissions:', error);
-        }
-        
+        // Không còn gọi permissions legacy
         return link;
     } catch (error) {
         console.error('Error fetching link by ID:', error);
