@@ -301,7 +301,7 @@ app.put('/api/links/:id/permissions', authenticateToken, authorizeRole(['admin']
         allowed_roles = VALUES(allowed_roles),
         allow_manager_preview = VALUES(allow_manager_preview),
         allow_employee_preview = VALUES(allow_employee_preview),
-        updated_at = NOW()
+        created_at = NOW()
     `;
     
     db.query(sql, [linkId, allowedRolesJson, allow_manager_preview, allow_employee_preview, req.user.userId], (err, result) => {
@@ -653,7 +653,7 @@ app.post('/api/links', authenticateToken, (req, res) => {
                 const values = users.map(u => [linkId, u.id, createdById || u.id]);
                 const insertPermSql = `INSERT INTO link_user_permissions (link_id, user_id, created_by)
                                        VALUES ?
-                                       ON DUPLICATE KEY UPDATE updated_at = NOW()`;
+                                       ON DUPLICATE KEY UPDATE created_at = NOW()`;
 
                 db.query(insertPermSql, [values], (err) => {
                     if (err) {
@@ -793,6 +793,866 @@ app.get('/api/links/stats', (req, res) => {
         } else {
             res.json(results);
         }
+    });
+});
+
+// ==================== SMART PHONE LINKS API ====================
+
+// 1. Lấy tất cả SmartPH links với permission filtering
+app.get('/api/smartph/links', authenticateToken, (req, res) => {
+    const { department, type, search, favorite } = req.query;
+    const userRole = req.user.role;
+    const userId = req.user.userId;
+    
+    console.log(`\n[GET /api/smartph/links] Request from user: ${req.user.username} (${userRole})`);
+    
+    let sql = `
+        SELECT 
+            sl.id,
+            sl.title,
+            sl.url,
+            sl.department,
+            sl.type,
+            sl.description,
+            sl.created_at,
+            sl.created_by,
+            sl.is_active,
+            sl.is_favorite,
+            sl.access_count,
+            CASE WHEN slup.user_id IS NULL THEN 0 ELSE 1 END AS has_user_access
+        FROM smartph_links sl
+        LEFT JOIN smartph_link_user_permissions slup 
+            ON sl.id = slup.link_id AND slup.user_id = ?
+        WHERE sl.is_active = 1
+    `;
+    const params = [userId];
+    
+    // Lọc theo phòng ban
+    if (department && department !== 'all') {
+        sql += ' AND sl.department = ?';
+        params.push(department);
+    }
+    
+    // Lọc theo loại
+    if (type && type !== 'all') {
+        sql += ' AND sl.type = ?';
+        params.push(type);
+    }
+    
+    // Tìm kiếm theo tiêu đề hoặc mô tả
+    if (search) {
+        sql += ' AND (sl.title LIKE ? OR sl.description LIKE ?)';
+        params.push(`%${search}%`, `%${search}%`);
+    }
+    
+    // Lọc theo yêu thích
+    if (favorite === 'true') {
+        sql += ' AND sl.is_favorite = 1';
+    }
+    
+    sql += ' ORDER BY sl.created_at DESC';
+    
+    db.query(sql, params, (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy danh sách SmartPH links:', err);
+            return res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
+        }
+        
+        console.log(`[GET /api/smartph/links] Found ${results.length} SmartPH links in database`);
+        
+        // Filter URL based on permissions
+        const filteredResults = results.map(link => {
+            const hasAccess = userRole === 'admin' || Boolean(link.has_user_access);
+            
+            if (!hasAccess) {
+                console.log(`  ❌ User (${userId}) NO ACCESS to SmartPH link ${link.id}: ${link.title} - URL masked`);
+                return {
+                    ...link,
+                    url: null,
+                    _restricted: true
+                };
+            } else {
+                console.log(`  ✅ User (${userId}) HAS ACCESS to SmartPH link ${link.id}: ${link.title}`);
+                return {
+                    ...link,
+                    _restricted: false
+                };
+            }
+        });
+        
+        console.log(`[GET /api/smartph/links] Returning ${filteredResults.length} SmartPH links (${filteredResults.filter(l => !l._restricted).length} accessible, ${filteredResults.filter(l => l._restricted).length} restricted)`);
+        
+        res.json(filteredResults);
+    });
+});
+
+// 2. Lấy SmartPH link theo ID
+app.get('/api/smartph/links/:id', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    const userRole = req.user.role;
+    const userId = req.user.userId;
+    
+    const sql = `
+        SELECT 
+            sl.id,
+            sl.title,
+            sl.url,
+            sl.department,
+            sl.type,
+            sl.description,
+            sl.created_at,
+            sl.created_by,
+            sl.is_active,
+            sl.is_favorite,
+            sl.access_count,
+            CASE WHEN slup.user_id IS NULL THEN 0 ELSE 1 END AS has_user_access
+        FROM smartph_links sl
+        LEFT JOIN smartph_link_user_permissions slup 
+            ON sl.id = slup.link_id AND slup.user_id = ?
+        WHERE sl.id = ? AND sl.is_active = 1
+    `;
+    
+    db.query(sql, [userId, id], (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy SmartPH link:', err);
+            return res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
+        }
+        
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Không tìm thấy SmartPH link' });
+        }
+        
+        const link = results[0];
+        const hasAccess = userRole === 'admin' || Boolean(link.has_user_access);
+        
+        if (!hasAccess) {
+            console.log(`[GET /api/smartph/links/${id}] User (${req.user.userId}) NO ACCESS - URL masked`);
+            return res.json({
+                ...link,
+                url: null,
+                _restricted: true
+            });
+        }
+        
+        console.log(`[GET /api/smartph/links/${id}] User (${req.user.userId}) HAS ACCESS`);
+        res.json({
+            ...link,
+            _restricted: false
+        });
+    });
+});
+
+// 3. Thêm SmartPH link mới
+app.post('/api/smartph/links', authenticateToken, (req, res) => {
+    const { title, url, department, type, description } = req.body;
+    const createdById = req.user && req.user.userId ? req.user.userId : null;
+
+    if (!title || !url || !department || !type) {
+        return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+
+    // Transaction: insert link, then auto-grant permissions to all users in department
+    db.beginTransaction(err => {
+        if (err) {
+            console.error('Lỗi khi bắt đầu transaction:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+
+        const insertLinkSql = `INSERT INTO smartph_links 
+                               (title, url, department, type, description, created_by) 
+                               VALUES (?, ?, ?, ?, ?, ?)`;
+
+        db.query(insertLinkSql, [title, url, department, type, description, createdById], (err, result) => {
+            if (err) {
+                console.error('Lỗi khi thêm SmartPH link:', err);
+                return db.rollback(() => {
+                    res.status(500).json({ message: 'Lỗi khi thêm SmartPH link', error: err.message });
+                });
+            }
+
+            const linkId = result.insertId;
+
+            // Auto grant: all active users in the same department get access
+            const selectUsersSql = `SELECT id FROM users WHERE is_active = TRUE AND department = ?`;
+
+            db.query(selectUsersSql, [department], (err, users) => {
+                if (err) {
+                    console.error('Lỗi khi lấy danh sách user theo phòng ban:', err);
+                    return db.rollback(() => {
+                        res.status(500).json({ message: 'Lỗi hệ thống' });
+                    });
+                }
+
+                if (!users || users.length === 0) {
+                    return db.commit(commitErr => {
+                        if (commitErr) {
+                            console.error('Lỗi khi commit transaction:', commitErr);
+                            return db.rollback(() => {
+                                res.status(500).json({ message: 'Lỗi hệ thống' });
+                            });
+                        }
+                        res.status(201).json({ message: 'Thêm SmartPH link thành công', id: linkId });
+                    });
+                }
+
+                const values = users.map(u => [linkId, u.id, createdById || u.id]);
+                const insertPermSql = `INSERT INTO smartph_link_user_permissions (link_id, user_id, created_by)
+                                       VALUES ?
+                                       ON DUPLICATE KEY UPDATE created_at = NOW()`;
+
+                db.query(insertPermSql, [values], (err) => {
+                    if (err) {
+                        console.error('Lỗi khi cấp quyền mặc định cho user:', err);
+                        return db.rollback(() => {
+                            res.status(500).json({ message: 'Lỗi hệ thống' });
+                        });
+                    }
+
+                    db.commit(commitErr => {
+                        if (commitErr) {
+                            console.error('Lỗi khi commit transaction:', commitErr);
+                            return db.rollback(() => {
+                                res.status(500).json({ message: 'Lỗi hệ thống' });
+                            });
+                        }
+
+                        res.status(201).json({ 
+                            message: 'Thêm SmartPH link thành công (đã cấp quyền cho phòng ban)', 
+                            id: linkId 
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// 4. Cập nhật SmartPH link
+app.put('/api/smartph/links/:id', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    const { title, url, department, type, description } = req.body;
+    
+    if (!title || !url || !department || !type) {
+        return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+    
+    const sql = `UPDATE smartph_links 
+                 SET title = ?, url = ?, department = ?, type = ?, description = ?, updated_at = NOW()
+                 WHERE id = ? AND is_active = 1`;
+    
+    db.query(sql, [title, url, department, type, description, id], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi cập nhật SmartPH link:', err);
+            res.status(500).json({ message: 'Lỗi khi cập nhật SmartPH link', error: err.message });
+        } else if (result.affectedRows === 0) {
+            res.status(404).json({ message: 'Không tìm thấy SmartPH link' });
+        } else {
+            res.json({ message: 'Cập nhật SmartPH link thành công' });
+        }
+    });
+});
+
+// 5. Xóa SmartPH link (soft delete)
+app.delete('/api/smartph/links/:id', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    const { authCode } = req.body;
+    
+    const correctCode = "***4";
+    if (authCode !== correctCode) {
+        return res.status(401).json({ message: 'Mã xác thực không đúng' });
+    }
+    
+    const sql = 'UPDATE smartph_links SET is_active = 0 WHERE id = ?';
+    
+    db.query(sql, [id], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi xóa SmartPH link:', err);
+            res.status(500).json({ message: 'Lỗi khi xóa SmartPH link', error: err.message });
+        } else if (result.affectedRows === 0) {
+            res.status(404).json({ message: 'Không tìm thấy SmartPH link' });
+        } else {
+            res.json({ message: 'Xóa SmartPH link thành công' });
+        }
+    });
+});
+
+// 6. Toggle favorite cho SmartPH link
+app.patch('/api/smartph/links/:id/favorite', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    const { is_favorite } = req.body;
+    
+    const sql = 'UPDATE smartph_links SET is_favorite = ? WHERE id = ? AND is_active = 1';
+    
+    db.query(sql, [is_favorite ? 1 : 0, id], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi cập nhật favorite SmartPH link:', err);
+            res.status(500).json({ message: 'Lỗi khi cập nhật', error: err.message });
+        } else if (result.affectedRows === 0) {
+            res.status(404).json({ message: 'Không tìm thấy SmartPH link' });
+        } else {
+            res.json({ message: 'Cập nhật favorite SmartPH link thành công' });
+        }
+    });
+});
+
+// 7. Tăng access count cho SmartPH link
+app.patch('/api/smartph/links/:id/access', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    
+    const sql = 'UPDATE smartph_links SET access_count = access_count + 1 WHERE id = ? AND is_active = 1';
+    
+    db.query(sql, [id], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi cập nhật access count SmartPH link:', err);
+            res.status(500).json({ message: 'Lỗi khi cập nhật', error: err.message });
+        } else if (result.affectedRows === 0) {
+            res.status(404).json({ message: 'Không tìm thấy SmartPH link' });
+        } else {
+            res.json({ message: 'Cập nhật access count SmartPH link thành công' });
+        }
+    });
+});
+
+// 8. Thống kê SmartPH links
+app.get('/api/smartph/links/stats', authenticateToken, (req, res) => {
+    const sql = `
+        SELECT 
+            COUNT(*) as total_links,
+            SUM(CASE WHEN is_favorite = 1 THEN 1 ELSE 0 END) as favorite_links,
+            SUM(access_count) as total_access,
+            department,
+            type,
+            COUNT(*) as count
+        FROM smartph_links 
+        WHERE is_active = 1 
+        GROUP BY department, type
+        ORDER BY department, type
+    `;
+    
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy thống kê SmartPH links:', err);
+            res.status(500).json({ message: 'Lỗi khi lấy thống kê', error: err.message });
+        } else {
+            res.json(results);
+        }
+    });
+});
+
+// ==================== SMART PHONE PERMISSIONS API ====================
+
+// 9. Thêm user vào permissions của SmartPH link (chỉ admin)
+app.post('/api/smartph/links/:id/permissions/users', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    const linkId = req.params.id;
+    const { user_id } = req.body;
+    
+    if (!user_id) {
+        return res.status(400).json({ message: 'Thiếu user_id' });
+    }
+    
+    console.log(`[POST /api/smartph/links/${linkId}/permissions/users] Adding user ${user_id}`);
+    
+    const sql = `
+        INSERT INTO smartph_link_user_permissions (link_id, user_id, created_by)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+        created_at = NOW()
+    `;
+    
+    db.query(sql, [linkId, user_id, req.user.userId], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi thêm user vào SmartPH permissions:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        console.log(`[POST /api/smartph/links/${linkId}/permissions/users] User added successfully:`, result);
+        res.json({ message: 'Thêm user vào SmartPH permissions thành công' });
+    });
+});
+
+// 10. Xóa user khỏi permissions của SmartPH link (chỉ admin)
+app.delete('/api/smartph/links/:id/permissions/users/:userId', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    const linkId = req.params.id;
+    const userId = req.params.userId;
+    
+    console.log(`[DELETE /api/smartph/links/${linkId}/permissions/users/${userId}] Removing user`);
+    
+    const sql = 'DELETE FROM smartph_link_user_permissions WHERE link_id = ? AND user_id = ?';
+    
+    db.query(sql, [linkId, userId], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi xóa user khỏi SmartPH permissions:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Không tìm thấy SmartPH permission' });
+        }
+        
+        console.log(`[DELETE /api/smartph/links/${linkId}/permissions/users/${userId}] User removed successfully:`, result);
+        res.json({ message: 'Xóa user khỏi SmartPH permissions thành công' });
+    });
+});
+
+// 11. Lấy danh sách users có quyền truy cập SmartPH link
+app.get('/api/smartph/links/:id/permissions/users', authenticateToken, (req, res) => {
+    const linkId = req.params.id;
+    
+    console.log(`[GET /api/smartph/links/${linkId}/permissions/users] Getting users with access`);
+    
+    const sql = `
+        SELECT 
+            u.id,
+            u.username,
+            u.name,
+            u.role,
+            u.department,
+            u.email,
+            slup.created_at as permission_granted_at
+        FROM smartph_link_user_permissions slup
+        JOIN users u ON slup.user_id = u.id
+        WHERE slup.link_id = ? AND u.is_active = TRUE
+        ORDER BY slup.created_at DESC
+    `;
+    
+    db.query(sql, [linkId], (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy danh sách SmartPH users:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        console.log(`[GET /api/smartph/links/${linkId}/permissions/users] Found ${results.length} users`);
+        res.json(results);
+    });
+});
+
+// ==================== BEST LAB LINKS API ====================
+
+// 1. Lấy tất cả BestLab links với permission filtering
+app.get('/api/bestlab/links', authenticateToken, (req, res) => {
+    const { department, type, search, favorite } = req.query;
+    const userRole = req.user.role;
+    const userId = req.user.userId;
+    
+    console.log(`\n[GET /api/bestlab/links] Request from user: ${req.user.username} (${userRole})`);
+    
+    let sql = `
+        SELECT 
+            bl.id,
+            bl.title,
+            bl.url,
+            bl.department,
+            bl.type,
+            bl.description,
+            bl.created_at,
+            bl.created_by,
+            bl.is_active,
+            bl.is_favorite,
+            bl.access_count,
+            CASE WHEN blup.user_id IS NULL THEN 0 ELSE 1 END AS has_user_access
+        FROM bestlab_links bl
+        LEFT JOIN bestlab_link_user_permissions blup 
+            ON bl.id = blup.link_id AND blup.user_id = ?
+        WHERE bl.is_active = 1
+    `;
+    const params = [userId];
+    
+    // Lọc theo phòng ban
+    if (department && department !== 'all') {
+        sql += ' AND bl.department = ?';
+        params.push(department);
+    }
+    
+    // Lọc theo loại
+    if (type && type !== 'all') {
+        sql += ' AND bl.type = ?';
+        params.push(type);
+    }
+    
+    // Tìm kiếm theo tiêu đề hoặc mô tả
+    if (search) {
+        sql += ' AND (bl.title LIKE ? OR bl.description LIKE ?)';
+        params.push(`%${search}%`, `%${search}%`);
+    }
+    
+    // Lọc theo yêu thích
+    if (favorite === 'true') {
+        sql += ' AND bl.is_favorite = 1';
+    }
+    
+    sql += ' ORDER BY bl.created_at DESC';
+    
+    db.query(sql, params, (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy danh sách BestLab links:', err);
+            return res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
+        }
+        
+        console.log(`[GET /api/bestlab/links] Found ${results.length} BestLab links in database`);
+        
+        // Filter URL based on permissions
+        const filteredResults = results.map(link => {
+            const hasAccess = userRole === 'admin' || Boolean(link.has_user_access);
+            
+            if (!hasAccess) {
+                console.log(`  ❌ User (${userId}) NO ACCESS to BestLab link ${link.id}: ${link.title} - URL masked`);
+                return {
+                    ...link,
+                    url: null,
+                    _restricted: true
+                };
+            } else {
+                console.log(`  ✅ User (${userId}) HAS ACCESS to BestLab link ${link.id}: ${link.title}`);
+                return {
+                    ...link,
+                    _restricted: false
+                };
+            }
+        });
+        
+        console.log(`[GET /api/bestlab/links] Returning ${filteredResults.length} BestLab links (${filteredResults.filter(l => !l._restricted).length} accessible, ${filteredResults.filter(l => l._restricted).length} restricted)`);
+        
+        res.json(filteredResults);
+    });
+});
+
+// 2. Lấy BestLab link theo ID
+app.get('/api/bestlab/links/:id', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    const userRole = req.user.role;
+    const userId = req.user.userId;
+    
+    const sql = `
+        SELECT 
+            bl.id,
+            bl.title,
+            bl.url,
+            bl.department,
+            bl.type,
+            bl.description,
+            bl.created_at,
+            bl.created_by,
+            bl.is_active,
+            bl.is_favorite,
+            bl.access_count,
+            CASE WHEN blup.user_id IS NULL THEN 0 ELSE 1 END AS has_user_access
+        FROM bestlab_links bl
+        LEFT JOIN bestlab_link_user_permissions blup 
+            ON bl.id = blup.link_id AND blup.user_id = ?
+        WHERE bl.id = ? AND bl.is_active = 1
+    `;
+    
+    db.query(sql, [userId, id], (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy BestLab link:', err);
+            return res.status(500).json({ message: 'Lỗi khi lấy dữ liệu', error: err.message });
+        }
+        
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Không tìm thấy BestLab link' });
+        }
+        
+        const link = results[0];
+        const hasAccess = userRole === 'admin' || Boolean(link.has_user_access);
+        
+        if (!hasAccess) {
+            console.log(`[GET /api/bestlab/links/${id}] User (${req.user.userId}) NO ACCESS - URL masked`);
+            return res.json({
+                ...link,
+                url: null,
+                _restricted: true
+            });
+        }
+        
+        console.log(`[GET /api/bestlab/links/${id}] User (${req.user.userId}) HAS ACCESS`);
+        res.json({
+            ...link,
+            _restricted: false
+        });
+    });
+});
+
+// 3. Thêm BestLab link mới
+app.post('/api/bestlab/links', authenticateToken, (req, res) => {
+    const { title, url, department, type, description } = req.body;
+    const createdById = req.user && req.user.userId ? req.user.userId : null;
+
+    if (!title || !url || !department || !type) {
+        return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+
+    // Transaction: insert link, then auto-grant permissions to all users in department
+    db.beginTransaction(err => {
+        if (err) {
+            console.error('Lỗi khi bắt đầu transaction:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+
+        const insertLinkSql = `INSERT INTO bestlab_links 
+                               (title, url, department, type, description, created_by) 
+                               VALUES (?, ?, ?, ?, ?, ?)`;
+
+        db.query(insertLinkSql, [title, url, department, type, description, createdById], (err, result) => {
+            if (err) {
+                console.error('Lỗi khi thêm BestLab link:', err);
+                return db.rollback(() => {
+                    res.status(500).json({ message: 'Lỗi khi thêm BestLab link', error: err.message });
+                });
+            }
+
+            const linkId = result.insertId;
+
+            // Auto grant: all active users in the same department get access
+            const selectUsersSql = `SELECT id FROM users WHERE is_active = TRUE AND department = ?`;
+
+            db.query(selectUsersSql, [department], (err, users) => {
+                if (err) {
+                    console.error('Lỗi khi lấy danh sách user theo phòng ban:', err);
+                    return db.rollback(() => {
+                        res.status(500).json({ message: 'Lỗi hệ thống' });
+                    });
+                }
+
+                if (!users || users.length === 0) {
+                    return db.commit(commitErr => {
+                        if (commitErr) {
+                            console.error('Lỗi khi commit transaction:', commitErr);
+                            return db.rollback(() => {
+                                res.status(500).json({ message: 'Lỗi hệ thống' });
+                            });
+                        }
+                        res.status(201).json({ message: 'Thêm BestLab link thành công', id: linkId });
+                    });
+                }
+
+                const values = users.map(u => [linkId, u.id, createdById || u.id]);
+                const insertPermSql = `INSERT INTO bestlab_link_user_permissions (link_id, user_id, created_by)
+                                       VALUES ?
+                                       ON DUPLICATE KEY UPDATE created_at = NOW()`;
+
+                db.query(insertPermSql, [values], (err) => {
+                    if (err) {
+                        console.error('Lỗi khi cấp quyền mặc định cho user:', err);
+                        return db.rollback(() => {
+                            res.status(500).json({ message: 'Lỗi hệ thống' });
+                        });
+                    }
+
+                    db.commit(commitErr => {
+                        if (commitErr) {
+                            console.error('Lỗi khi commit transaction:', commitErr);
+                            return db.rollback(() => {
+                                res.status(500).json({ message: 'Lỗi hệ thống' });
+                            });
+                        }
+
+                        res.status(201).json({ 
+                            message: 'Thêm BestLab link thành công (đã cấp quyền cho phòng ban)', 
+                            id: linkId 
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// 4. Cập nhật BestLab link
+app.put('/api/bestlab/links/:id', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    const { title, url, department, type, description } = req.body;
+    
+    if (!title || !url || !department || !type) {
+        return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+    }
+    
+    const sql = `UPDATE bestlab_links 
+                 SET title = ?, url = ?, department = ?, type = ?, description = ?, updated_at = NOW()
+                 WHERE id = ? AND is_active = 1`;
+    
+    db.query(sql, [title, url, department, type, description, id], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi cập nhật BestLab link:', err);
+            res.status(500).json({ message: 'Lỗi khi cập nhật BestLab link', error: err.message });
+        } else if (result.affectedRows === 0) {
+            res.status(404).json({ message: 'Không tìm thấy BestLab link' });
+        } else {
+            res.json({ message: 'Cập nhật BestLab link thành công' });
+        }
+    });
+});
+
+// 5. Xóa BestLab link (soft delete)
+app.delete('/api/bestlab/links/:id', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    const { authCode } = req.body;
+    
+    const correctCode = "***4";
+    if (authCode !== correctCode) {
+        return res.status(401).json({ message: 'Mã xác thực không đúng' });
+    }
+    
+    const sql = 'UPDATE bestlab_links SET is_active = 0 WHERE id = ?';
+    
+    db.query(sql, [id], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi xóa BestLab link:', err);
+            res.status(500).json({ message: 'Lỗi khi xóa BestLab link', error: err.message });
+        } else if (result.affectedRows === 0) {
+            res.status(404).json({ message: 'Không tìm thấy BestLab link' });
+        } else {
+            res.json({ message: 'Xóa BestLab link thành công' });
+        }
+    });
+});
+
+// 6. Toggle favorite cho BestLab link
+app.patch('/api/bestlab/links/:id/favorite', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    const { is_favorite } = req.body;
+    
+    const sql = 'UPDATE bestlab_links SET is_favorite = ? WHERE id = ? AND is_active = 1';
+    
+    db.query(sql, [is_favorite ? 1 : 0, id], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi cập nhật favorite BestLab link:', err);
+            res.status(500).json({ message: 'Lỗi khi cập nhật', error: err.message });
+        } else if (result.affectedRows === 0) {
+            res.status(404).json({ message: 'Không tìm thấy BestLab link' });
+        } else {
+            res.json({ message: 'Cập nhật favorite BestLab link thành công' });
+        }
+    });
+});
+
+// 7. Tăng access count cho BestLab link
+app.patch('/api/bestlab/links/:id/access', authenticateToken, (req, res) => {
+    const id = req.params.id;
+    
+    const sql = 'UPDATE bestlab_links SET access_count = access_count + 1 WHERE id = ? AND is_active = 1';
+    
+    db.query(sql, [id], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi cập nhật access count BestLab link:', err);
+            res.status(500).json({ message: 'Lỗi khi cập nhật', error: err.message });
+        } else if (result.affectedRows === 0) {
+            res.status(404).json({ message: 'Không tìm thấy BestLab link' });
+        } else {
+            res.json({ message: 'Cập nhật access count BestLab link thành công' });
+        }
+    });
+});
+
+// 8. Thống kê BestLab links
+app.get('/api/bestlab/links/stats', authenticateToken, (req, res) => {
+    const sql = `
+        SELECT 
+            COUNT(*) as total_links,
+            SUM(CASE WHEN is_favorite = 1 THEN 1 ELSE 0 END) as favorite_links,
+            SUM(access_count) as total_access,
+            department,
+            type,
+            COUNT(*) as count
+        FROM bestlab_links 
+        WHERE is_active = 1 
+        GROUP BY department, type
+        ORDER BY department, type
+    `;
+    
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy thống kê BestLab links:', err);
+            res.status(500).json({ message: 'Lỗi khi lấy thống kê', error: err.message });
+        } else {
+            res.json(results);
+        }
+    });
+});
+
+// ==================== BEST LAB PERMISSIONS API ====================
+
+// 9. Thêm user vào permissions của BestLab link (chỉ admin)
+app.post('/api/bestlab/links/:id/permissions/users', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    const linkId = req.params.id;
+    const { user_id } = req.body;
+    
+    if (!user_id) {
+        return res.status(400).json({ message: 'Thiếu user_id' });
+    }
+    
+    console.log(`[POST /api/bestlab/links/${linkId}/permissions/users] Adding user ${user_id}`);
+    
+    const sql = `
+        INSERT INTO bestlab_link_user_permissions (link_id, user_id, created_by)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+        created_at = NOW()
+    `;
+    
+    db.query(sql, [linkId, user_id, req.user.userId], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi thêm user vào BestLab permissions:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        console.log(`[POST /api/bestlab/links/${linkId}/permissions/users] User added successfully:`, result);
+        res.json({ message: 'Thêm user vào BestLab permissions thành công' });
+    });
+});
+
+// 10. Xóa user khỏi permissions của BestLab link (chỉ admin)
+app.delete('/api/bestlab/links/:id/permissions/users/:userId', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    const linkId = req.params.id;
+    const userId = req.params.userId;
+    
+    console.log(`[DELETE /api/bestlab/links/${linkId}/permissions/users/${userId}] Removing user`);
+    
+    const sql = 'DELETE FROM bestlab_link_user_permissions WHERE link_id = ? AND user_id = ?';
+    
+    db.query(sql, [linkId, userId], (err, result) => {
+        if (err) {
+            console.error('Lỗi khi xóa user khỏi BestLab permissions:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Không tìm thấy BestLab permission' });
+        }
+        
+        console.log(`[DELETE /api/bestlab/links/${linkId}/permissions/users/${userId}] User removed successfully:`, result);
+        res.json({ message: 'Xóa user khỏi BestLab permissions thành công' });
+    });
+});
+
+// 11. Lấy danh sách users có quyền truy cập BestLab link
+app.get('/api/bestlab/links/:id/permissions/users', authenticateToken, (req, res) => {
+    const linkId = req.params.id;
+    
+    console.log(`[GET /api/bestlab/links/${linkId}/permissions/users] Getting users with access`);
+    
+    const sql = `
+        SELECT 
+            u.id,
+            u.username,
+            u.name,
+            u.role,
+            u.department,
+            u.email,
+            blup.created_at as permission_granted_at
+        FROM bestlab_link_user_permissions blup
+        JOIN users u ON blup.user_id = u.id
+        WHERE blup.link_id = ? AND u.is_active = TRUE
+        ORDER BY blup.created_at DESC
+    `;
+    
+    db.query(sql, [linkId], (err, results) => {
+        if (err) {
+            console.error('Lỗi khi lấy danh sách BestLab users:', err);
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
+        }
+        
+        console.log(`[GET /api/bestlab/links/${linkId}/permissions/users] Found ${results.length} users`);
+        res.json(results);
     });
 });
 
@@ -1032,6 +1892,24 @@ https.createServer(httpsoptions, app).listen(port, () => {
     console.log('  PATCH  /api/links/:id/favorite - Toggle favorite');
     console.log('  PATCH  /api/links/:id/access - Tăng access count');
     console.log('  GET    /api/links/stats - Thống kê');
+    console.log('SmartPH Links API endpoints:');
+    console.log('  GET    /api/smartph/links - Lấy danh sách SmartPH links');
+    console.log('  GET    /api/smartph/links/:id - Lấy SmartPH link theo ID');
+    console.log('  POST   /api/smartph/links - Thêm SmartPH link mới');
+    console.log('  PUT    /api/smartph/links/:id - Cập nhật SmartPH link');
+    console.log('  DELETE /api/smartph/links/:id - Xóa SmartPH link');
+    console.log('  PATCH  /api/smartph/links/:id/favorite - Toggle favorite');
+    console.log('  PATCH  /api/smartph/links/:id/access - Tăng access count');
+    console.log('  GET    /api/smartph/links/stats - Thống kê SmartPH links');
+    console.log('BestLab Links API endpoints:');
+    console.log('  GET    /api/bestlab/links - Lấy danh sách BestLab links');
+    console.log('  GET    /api/bestlab/links/:id - Lấy BestLab link theo ID');
+    console.log('  POST   /api/bestlab/links - Thêm BestLab link mới');
+    console.log('  PUT    /api/bestlab/links/:id - Cập nhật BestLab link');
+    console.log('  DELETE /api/bestlab/links/:id - Xóa BestLab link');
+    console.log('  PATCH  /api/bestlab/links/:id/favorite - Toggle favorite');
+    console.log('  PATCH  /api/bestlab/links/:id/access - Tăng access count');
+    console.log('  GET    /api/bestlab/links/stats - Thống kê BestLab links');
     console.log('AI Customer Support API endpoints:');
     console.log('  POST   /api/ai/scrape-document - Cào dữ liệu HTML từ URL');
 });

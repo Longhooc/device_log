@@ -84,10 +84,10 @@ function LinkCard({
                                 onLinkClick(link.id);
                             } else {
                                 e.preventDefault();
-                                alert('⚠️ URL đã bị ẩn do bạn không có quyền truy cập!\nLiên hệ Admin để được cấp quyền.');
+                                alert('⚠️ Link bị khóa - Không có quyền truy cập!');
                             }
                         }}
-                        title={hasAccess ? "Mở link" : "URL đã bị ẩn - Không có quyền truy cập"}
+                        title={hasAccess ? "Mở link" : "Link bị khóa"}
                     >
                         🔗 Mở
                     </a>

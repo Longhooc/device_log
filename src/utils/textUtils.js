@@ -8,7 +8,27 @@ export const renderLineWithLinks = (line, onPreview, linksWithPermissions = [], 
     
     const urlRegex = /(https?:\/\/[\w\-._~:\/?#[\]@!$&'()*+,;=%]+)/g;
     
-    return line.split(urlRegex).map((part, i) => {
+    // Process the line to add highlighting for headers and [Locked]
+    const processedLine = line
+        // Highlight headers like **#1 - TITLE (Độ khớp: XX%)** (Deep Search)
+        .replace(/\*\*#(\d+) - ([^*]+) \(Độ khớp: (\d+)%\)\*\*/g, 
+            '<strong style="color: #2c3e50; background: linear-gradient(90deg, #e8f4fd, #f0f8ff); padding: 4px 8px; border-radius: 4px; border-left: 4px solid #3498db;">#$1 - $2 <span style="color: #e74c3c; font-weight: bold;">(Độ khớp: $3%)</span></strong>')
+        // Highlight simple headers like "1. TITLE" (Quick Ask)
+        .replace(/^(\d+)\.\s+"([^"]+)"/gm, 
+            '<div style="color: #2c3e50; background: linear-gradient(90deg, #e8f4fd, #f0f8ff); padding: 4px 8px; border-radius: 4px; border-left: 4px solid #3498db; margin: 8px 0; font-weight: bold;">$1. "$2"</div>')
+        // Highlight [Locked] text in response
+        .replace(/\[Locked\]/g, '<span style="color: #e74c3c; background: #ffe6e6; padding: 2px 6px; border-radius: 3px; font-weight: bold; border: 1px solid #f5c6cb;">🔒</span>')
+        // Highlight other important markers
+        .replace(/📌 Nội dung khớp:/g, '<span style="color: #27ae60; font-weight: bold;">📌 Nội dung khớp:</span>')
+        .replace(/🔗 URL:/g, '<span style="color: #3498db; font-weight: bold;">🔗 URL:</span>')
+        .replace(/📊 TỔNG KẾT:/g, '<span style="color: #8e44ad; font-weight: bold; background: #f4f0f7; padding: 4px 8px; border-radius: 4px;">📊 TỔNG KẾT:</span>')
+        // Highlight Quick Ask specific markers
+        .replace(/Phòng ban:/g, '<span style="color: #8e44ad; font-weight: bold;">Phòng ban:</span>')
+        .replace(/Loại:/g, '<span style="color: #e67e22; font-weight: bold;">Loại:</span>')
+        .replace(/Mô tả:/g, '<span style="color: #27ae60; font-weight: bold;">Mô tả:</span>')
+        .replace(/URL:/g, '<span style="color: #3498db; font-weight: bold;">URL:</span>');
+    
+    return processedLine.split(urlRegex).map((part, i) => {
         if (urlRegex.test(part)) {
             // Tìm link tương ứng trong danh sách
             // ✅ SECURITY FIX: Check URL null trước khi gọi .includes()
@@ -19,8 +39,14 @@ export const renderLineWithLinks = (line, onPreview, linksWithPermissions = [], 
             );
             
             // Kiểm tra quyền truy cập
-            const hasAccess = matchingLink ? canAccessLink(matchingLink.permissions) : true;
-            const canPreview = matchingLink ? canPreviewLink(matchingLink.permissions) : true;
+            // Tạo permissions object với has_user_access từ link object
+            const linkPermissions = matchingLink ? {
+                ...matchingLink.permissions,
+                has_user_access: matchingLink.has_user_access
+            } : null;
+            
+            const hasAccess = matchingLink ? canAccessLink(linkPermissions) : true;
+            const canPreview = matchingLink ? canPreviewLink(linkPermissions) : true;
             
             // Nếu không có quyền, hiển thị ổ khóa thay vì URL
             if (!hasAccess) {
@@ -32,7 +58,7 @@ export const renderLineWithLinks = (line, onPreview, linksWithPermissions = [], 
                                 e.preventDefault();
                                 alert('Bạn không có quyền truy cập link này!');
                             }}
-                            title="Link bị khóa - Không có quyền truy cập"
+                            title="Link bị khóa"
                             style={{
                                 color: '#e74c3c',
                                 cursor: 'not-allowed',
@@ -48,7 +74,7 @@ export const renderLineWithLinks = (line, onPreview, linksWithPermissions = [], 
                             🔒 [Link bị khóa]
                         </span>
                         <span className="access-denied-text" style={{color: '#e74c3c', fontSize: '12px', marginLeft: '5px'}}>
-                            (Không có quyền truy cập)
+                            (Locked)
                         </span>
                     </span>
                 );
@@ -81,6 +107,10 @@ export const renderLineWithLinks = (line, onPreview, linksWithPermissions = [], 
                 </span>
             );
         } else {
+            // Check if part contains HTML tags (from our highlighting)
+            if (part.includes('<')) {
+                return <span key={i} dangerouslySetInnerHTML={{__html: part}} />;
+            }
             return <span key={i}>{part}</span>;
         }
     });

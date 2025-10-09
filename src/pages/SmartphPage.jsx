@@ -3,7 +3,7 @@ import './SmartphPage.scss';
 
 // Hooks
 import { useSettings } from '../hooks/useSettings';
-import { useLinks } from '../hooks/useLinks';
+import { useSmartPhLinks } from '../hooks/useSmartPhLinks';
 import { useAuth } from '../auth/authContext';
 
 // Components
@@ -12,7 +12,7 @@ import AddLinkForm from '../components/AddLinkForm';
 import LinkCard from '../components/LinkCard';
 import PreviewModal from '../components/PreviewModal';
 import UserProfile from '../components/UserProfile';
-import AdminPanel from '../components/AdminPanel';
+import SmartPhAdminPanel from '../components/SmartPhAdminPanel';
 
 // Utils
 import { convertToEmbedUrl } from '../utils/textUtils';
@@ -22,7 +22,6 @@ function SmartphPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDepartment, setSelectedDepartment] = useState('all');
     const [showAddForm, setShowAddForm] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [showPreview, setShowPreview] = useState(false);
@@ -37,7 +36,7 @@ function SmartphPage() {
     // Custom hooks
     const { user, hasPermission, canAccessLink, canPreviewLink } = useAuth();
     const settings = useSettings();
-    const links = useLinks();
+    const smartphLinks = useSmartPhLinks();
 
     // Constants
     const departments = [
@@ -60,59 +59,59 @@ function SmartphPage() {
     ];
 
     const linkTypes = [
-        { value: 'form', label: 'Google Form', icon: '📝' },
-        { value: 'sheet', label: 'Google Sheet', icon: '📊' },
-        { value: 'doc', label: 'Google Doc', icon: '📄' }
+        { value: 'drive', label: 'Drive', icon: '🔬' },
+        { value: 'doc', label: 'Doc', icon: '🔧' },
+        { value: 'sheet', label: 'Sheet', icon: '📄' },
+        { value: 'bom', label: 'BOM', icon: '📊' },
+        { value: 'other', label: 'Khác', icon: '🔗' }
     ];
 
-    // Không còn role-based permissions; backend đã mask URL theo account-based
-    const linksWithPermissions = links.links;
+    // Update filters when search or department changes
+    React.useEffect(() => {
+        smartphLinks.updateFilters({
+            search: searchTerm,
+            department: selectedDepartment
+        });
+    }, [searchTerm, selectedDepartment, smartphLinks.updateFilters]);
 
-    // Filter links (hiển thị tất cả, không ẩn theo quyền)
-    const filteredLinks = linksWithPermissions.filter(link => {
-        // Kiểm tra tìm kiếm và phòng ban
-        const matchesSearch = link.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            (link.description && link.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchesDepartment = selectedDepartment === 'all' || link.department === selectedDepartment;
-        
-        return matchesSearch && matchesDepartment;
-    });
+    // Get filtered links from hook
+    const filteredLinks = smartphLinks.links;
 
     // Handlers
     const handleAddLink = async () => {
         try {
-            await links.addLink(newLink);
+            await smartphLinks.createLink(newLink);
             setNewLink({
                 title: '',
                 url: '',
                 department: '',
                 description: '',
-                type: 'form'
+                type: 'app'
             });
             setShowAddForm(false);
-            alert('Thêm link thành công!');
+            alert('Thêm SmartPH link thành công!');
         } catch (error) {
             alert(error.message);
         }
     };
 
     const handleDeleteLink = async (id) => {
-        if (window.confirm('Bạn có chắc chắn muốn xóa link này?')) {
+        if (window.confirm('Bạn có chắc chắn muốn xóa SmartPH link này?')) {
             try {
                 const authCode = prompt('Nhập mã xác thực để xóa:');
                 if (!authCode) return;
                 
-                await links.removeLink(id, authCode);
-                alert('Xóa link thành công!');
+                await smartphLinks.deleteLink(id, authCode);
+                alert('Xóa SmartPH link thành công!');
             } catch (error) {
                 alert(error.message);
             }
         }
     };
 
-    const handleToggleFavorite = async (linkId) => {
+    const handleToggleFavorite = async (linkId, isFavorite) => {
         try {
-            await links.toggleFavorite(linkId);
+            await smartphLinks.toggleFavorite(linkId, isFavorite);
         } catch (error) {
             alert(error.message);
         }
@@ -133,41 +132,20 @@ function SmartphPage() {
         <div className="smartph-page">
             {/* Admin Panel */}
             {showAdminPanel && (
-                <AdminPanel />
+                <SmartPhAdminPanel onClose={() => setShowAdminPanel(false)} />
             )}
 
-            {/* Settings Panel */}
-            {showSettings && (
-                <SettingsPanel
-                    apiKeys={settings.apiKeys}
-                    selectedKeyId={settings.selectedKeyId}
-                    modelQuick={settings.modelQuick}
-                    modelSmart={settings.modelSmart}
-                    onModelQuickChange={settings.setModelQuick}
-                    onModelSmartChange={settings.setModelSmart}
-                    onAddApiKey={settings.addApiKey}
-                    onDeleteApiKey={settings.deleteApiKey}
-                    onSelectApiKey={settings.selectApiKey}
-                    onSaveModels={settings.saveModels}
-                    privacyFilters={settings.privacyFilters}
-                    onAddPrivacyFilter={settings.addPrivacyFilter}
-                    onUpdatePrivacyFilter={settings.updatePrivacyFilter}
-                    onDeletePrivacyFilter={settings.deletePrivacyFilter}
-                    onClose={() => setShowSettings(false)}
-                />
-            )}
 
             {/* Header */}
-            <div className="header">
+            <div className="header smartph-header">
                 <div className="header-content">
                     <div className="header-text">
-                        <h1>📱 SMARTPH - Quản lý Link</h1>
-                        <p>Tập trung hóa các link Google Form, Sheet, Doc của SMARTPH (không có AI tra cứu)</p>
-                        {process.env.NODE_ENV === 'development' && (
-                            <small style={{color: '#999', fontSize: '12px'}}>
-                                Debug: {links.links.length} links từ API
-                            </small>
-                        )}
+                        <div className="header-icon">📱</div>
+                        <div className="header-title">
+                            <h1>SMARTPH</h1>
+                            <p>Quản lý Link Ứng Dụng & Công Cụ</p>
+                        </div>
+
                     </div>
                     <div className="header-actions">
                         {hasPermission('canAccessAdminPanel') && (
@@ -175,7 +153,8 @@ function SmartphPage() {
                                 className="btn-admin"
                                 onClick={() => setShowAdminPanel(!showAdminPanel)}
                             >
-                                👑 Admin Panel
+                                <span className="btn-icon">👑</span>
+                                <span className="btn-text">Admin Panel</span>
                             </button>
                         )}
                         <UserProfile />
@@ -216,12 +195,6 @@ function SmartphPage() {
                         ➕ Thêm Link
                     </button>
 
-                    <button
-                        className="btn-settings"
-                        onClick={() => setShowSettings(true)}
-                    >
-                        ⚙️ Cài đặt
-                    </button>
                 </div>
             </div>
 
@@ -240,11 +213,11 @@ function SmartphPage() {
             {/* Stats */}
             <div className="stats">
                 <div className="stat-item">
-                    <span className="stat-number">{links.links.length}</span>
-                    <span className="stat-label">Tổng số links</span>
+                    <span className="stat-number">{smartphLinks.links.length}</span>
+                    <span className="stat-label">Tổng số SmartPH links</span>
                 </div>
                 <div className="stat-item">
-                    <span className="stat-number">{linksWithPermissions.filter(link => link.url !== null).length}</span>
+                    <span className="stat-number">{smartphLinks.links.filter(link => !link._restricted).length}</span>
                     <span className="stat-label">Có thể truy cập</span>
                 </div>
                 <div className="stat-item">
@@ -259,23 +232,28 @@ function SmartphPage() {
 
             {/* Links Grid */}
             <div className="links-grid">
-                {links.links.length === 0 ? (
+                {smartphLinks.loading ? (
+                    <div className="loading">
+                        <div className="loading-spinner">⏳</div>
+                        <p>Đang tải SmartPH links...</p>
+                    </div>
+                ) : smartphLinks.links.length === 0 ? (
                     <div className="no-results">
-                        <div className="no-links-icon">📝</div>
-                        <h3>Chưa có link nào</h3>
-                        <p>Hãy thêm link đầu tiên để bắt đầu sử dụng hệ thống</p>
+                        <div className="no-links-icon">📱</div>
+                        <h3>Chưa có SmartPH link nào</h3>
+                        <p>Hãy thêm SmartPH link đầu tiên để bắt đầu sử dụng hệ thống</p>
                         <button 
                             className="btn-primary"
                             onClick={() => setShowAddForm(true)}
                         >
-                            ➕ Thêm Link Đầu Tiên
+                            ➕ Thêm SmartPH Link Đầu Tiên
                         </button>
                     </div>
                 ) : filteredLinks.length === 0 ? (
                     <div className="no-results">
                         <div className="no-results-icon">🔍</div>
-                        <h3>Không tìm thấy link nào</h3>
-                        <p>Không có link nào phù hợp với tiêu chí tìm kiếm hiện tại</p>
+                        <h3>Không tìm thấy SmartPH link nào</h3>
+                        <p>Không có SmartPH link nào phù hợp với tiêu chí tìm kiếm hiện tại</p>
                         <button 
                             className="btn-secondary"
                             onClick={() => {
@@ -293,10 +271,10 @@ function SmartphPage() {
                             link={link}
                             departments={departments}
                             linkTypes={linkTypes}
-                            isFavorite={links.favoriteLinks.includes(link.id)}
+                            isFavorite={link.is_favorite}
                             onToggleFavorite={handleToggleFavorite}
                             onPreview={handlePreview}
-                            onLinkClick={links.trackLinkClick}
+                            onLinkClick={() => smartphLinks.incrementAccess(link.id)}
                             onDelete={handleDeleteLink}
                         />
                     ))

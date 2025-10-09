@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/authContext';
 import { USER_ROLES } from '../auth/authContext';
+import { USER_DEPARTMENTS } from '../constants/departments';
 import { useLinks } from '../hooks/useLinks';
 import { 
     getAllUsers, 
@@ -90,17 +91,40 @@ function AdminPanel() {
         return roleIcons[role] || '👤';
     };
 
+    // Sử dụng danh sách phòng ban có sẵn
+
     const handleAddUser = async () => {
-        if (!newUser.username || !newUser.password || !newUser.name) {
-            alert('Vui lòng nhập đầy đủ thông tin');
+        if (!newUser.username || !newUser.password || !newUser.name || !newUser.department) {
+            alert('Vui lòng nhập đầy đủ thông tin và chọn phòng ban');
             return;
         }
 
         try {
             setIsLoading(true);
-            await createUser(newUser);
             
-            // Reload users list
+            // 1. Tạo user mới
+            const createdUser = await createUser(newUser);
+            console.log('✅ User created:', createdUser);
+            
+            // 2. Lấy tất cả Google links của phòng ban
+            const allLinks = links.links; // links.links là array từ useLinks hook
+            const departmentLinks = allLinks.filter(link => link.department === newUser.department);
+            console.log(`📋 Found ${departmentLinks.length} Google links for department: ${newUser.department}`);
+            
+            // 3. Cấp quyền truy cập tất cả Google links của phòng ban cho user mới
+            if (departmentLinks.length > 0) {
+                const permissionPromises = departmentLinks.map(link => 
+                    addUserToLinkPermissions(link.id, createdUser.id).catch(error => {
+                        console.warn(`⚠️ Failed to grant access to Google link ${link.id}:`, error);
+                        return null; // Continue with other links even if one fails
+                    })
+                );
+                
+                await Promise.all(permissionPromises);
+                console.log(`✅ Granted access to ${departmentLinks.length} Google links for user ${createdUser.username}`);
+            }
+            
+            // 4. Reload users list
             const usersData = await getAllUsers();
             setUsers(usersData);
             
@@ -114,7 +138,7 @@ function AdminPanel() {
                 phone: ''
             });
             setShowAddUser(false);
-            alert('Thêm người dùng thành công!');
+            alert(`Thêm người dùng thành công! Đã cấp quyền truy cập ${departmentLinks.length} tài liệu Google của phòng ban.`);
         } catch (error) {
             console.error('Error creating user:', error);
             alert('Lỗi khi thêm người dùng: ' + (error.response?.data?.message || error.message));
@@ -280,12 +304,17 @@ function AdminPanel() {
                             <div className="form-row">
                                 <div className="form-group">
                                     <label>Phòng ban:</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={newUser.department}
                                         onChange={(e) => setNewUser({...newUser, department: e.target.value})}
-                                        placeholder="Nhập phòng ban"
-                                    />
+                                    >
+                                        <option value="">-- Chọn phòng ban --</option>
+                                        {USER_DEPARTMENTS.map(dept => (
+                                            <option key={dept.value} value={dept.value}>
+                                                {dept.label}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="form-group">
                                     <label>Email:</label>

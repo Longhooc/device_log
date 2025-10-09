@@ -111,7 +111,7 @@ ${links.map((link, index) =>
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có mô tả'}
-   - URL: ${link.url || '[URL bị ẩn - Không có quyền truy cập]'}
+   - URL: ${link.url || '[Locked]'}
    - Ngày thêm: ${link.dateAdded}`
 ).join('\n\n')}
 
@@ -181,19 +181,19 @@ export const askGeminiSpecificQuestion = async (question, links = [], privacyFil
 Bạn là trợ lý tra cứu links. Dựa vào danh sách links có sẵn, hãy tìm những links phù hợp với yêu cầu.
 
 YÊU CẦU TRA CỨU: "${maskedQuestion}"
-
+HƯỚNG DẪN:
+- CHỈ trả lời về các links có trong danh sách trên (có url đính kèm)
+- KHÔNG đưa ra lời khuyên hay gợi ý chung
+- Nếu không tìm thấy, nói "Không tìm thấy link phù hợp"
+- Trả lời ngắn gọn, chỉ liệt kê links liên quan
 DANH SÁCH LINKS CÓ SẴN:
 ${maskedLinks.map((link, index) => `${index + 1}. "${link.title}" 
    - Phòng ban: ${link.department}
    - Loại: ${link.type} 
    - Mô tả: ${link.description || 'Không có'}
-   - URL: ${link.url || '[URL bị ẩn - Không có quyền truy cập]'}`).join('\n\n')}
+   - URL: ${link.url || '[Locked]'}`).join('\n\n')}
 
-HƯỚNG DẪN:
-- CHỈ trả lời về các links có trong danh sách trên
-- KHÔNG đưa ra lời khuyên hay gợi ý chung
-- Nếu không tìm thấy, nói "Không tìm thấy link phù hợp"
-- Trả lời ngắn gọn, chỉ liệt kê links liên quan`;
+`;
 
         const url = buildApiUrl(model, apiKey);
         const response = await fetch(url, {
@@ -236,7 +236,7 @@ ${maskedLinks.map((link, i) => `${i+1}. "${link.title}"
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có'}
-   - URL: ${link.url || '[URL bị ẩn - Không có quyền truy cập]'}`).join('\n\n')}
+   - URL: ${link.url || '[Locked]'}`).join('\n\n')}
 
 YÊU CẦU:
 - CHỈ liệt kê những links khớp với tiêu chí "${maskedCriteria}"
@@ -276,7 +276,7 @@ ${searchContext ? `${searchContext}\n` : ''}
 
 DANH SÁCH TÀI LIỆU CẦN SO SÁNH:
 ${maskedLinks.map((link, i) => `${i+1}. "${link.title}"
-   - URL: ${link.url || '[URL bị ẩn - Không có quyền truy cập]'}
+   - URL: ${link.url || '[Locked]'}
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có mô tả'}`).join('\n\n')}

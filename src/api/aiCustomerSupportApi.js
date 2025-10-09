@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://axithcl.sytes.net
 
 // Tạo axios instance với authentication
 const createApiInstance = () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('authToken');
     return axios.create({
         baseURL: API_BASE_URL,
         headers: {

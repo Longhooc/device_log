@@ -177,7 +177,7 @@ export const useGeminiAI = (canAccessLink = () => true, user = null) => {
             
             // Parse permissions (convert snake_case to camelCase and parse JSON strings)
             const linksWithParsedPermissions = linksToSearch.map(link => {
-                let permissions = link.permissions;
+                let permissions = link.permissions || {};
                 
                 // Parse allowed_roles if it's a JSON string
                 if (permissions && permissions.allowed_roles && typeof permissions.allowed_roles === 'string') {
@@ -201,6 +201,12 @@ export const useGeminiAI = (canAccessLink = () => true, user = null) => {
                     };
                 }
                 
+                // Add has_user_access from link object to permissions
+                permissions = {
+                    ...permissions,
+                    has_user_access: link.has_user_access
+                };
+                
                 return {
                     ...link,
                     permissions
@@ -213,6 +219,8 @@ export const useGeminiAI = (canAccessLink = () => true, user = null) => {
                     const hasAccess = canAccessLink(link.permissions);
                     console.log(`   [${idx + 1}] ${link.title}:`);
                     console.log(`       allowedRoles:`, link.permissions?.allowedRoles);
+                    console.log(`       has_user_access:`, link.permissions?.has_user_access);
+                    console.log(`       Full permissions:`, link.permissions);
                     console.log(`       Can access: ${hasAccess}`);
                 });
             }

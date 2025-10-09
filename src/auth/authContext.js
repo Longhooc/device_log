@@ -125,14 +125,19 @@ export const AuthProvider = ({ children }) => {
         return ROLE_PERMISSIONS[user.role]?.[permission] || false;
     };
 
-    // Kiểm tra quyền truy cập link
+    // Kiểm tra quyền truy cập link - Sử dụng account-based permission
     const canAccessLink = (linkPermissions) => {
         if (!user) return false;
         
         // Admin có thể truy cập tất cả
         if (user.role === USER_ROLES.ADMIN) return true;
         
-        // Kiểm tra quyền theo vai trò
+        // Kiểm tra account-based permission trước (has_user_access)
+        if (linkPermissions && typeof linkPermissions.has_user_access !== 'undefined') {
+            return Boolean(linkPermissions.has_user_access);
+        }
+        
+        // Fallback: Kiểm tra quyền theo vai trò (role-based)
         if (linkPermissions && linkPermissions.allowedRoles && Array.isArray(linkPermissions.allowedRoles)) {
             return linkPermissions.allowedRoles.includes(user.role);
         }
