@@ -227,12 +227,12 @@ ${compactContent}
 
             // Hiệu ứng thinking với các câu loading
             const thinkingMessages = [
-                "🤔 Đang suy nghĩ...",
-                "🔍 📚 Đang tìm kiếm trong tri thức...",
-                "💭 Đang xử lý câu hỏi...",
-                "🧠 AI đang học hỏi...",
-                "⚡ Đang tổng hợp thông tin...",
-                "🎯 Đang chuẩn bị câu trả lời..."
+                "🤔 AI Thinking...",
+                "🔍 📚 Finding in knowledge...",
+                "💭 Processing question...",
+                "🧠 AI is learning...",
+                "⚡ Summarizing information...",
+                "🎯 Preparing answer..."
             ];
             
             let thinkingIndex = 0;

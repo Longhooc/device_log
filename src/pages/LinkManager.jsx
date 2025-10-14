@@ -335,7 +335,7 @@ function LinkManager() {
             {gemini.isLoadingGemini && (
                 <div className="thinking">
                     <div className="spinner"></div>
-                    <p>{gemini.analyzingProgress || '🤔 Đang suy nghĩ...'}</p>
+                    <p>{gemini.analyzingProgress || '🤔 AI Thinking...'}</p>
                 </div>
             )}
 

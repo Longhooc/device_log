@@ -31,8 +31,8 @@ function LoginForm() {
         <div className="login-container">
             <div className="login-form">
                 <div className="login-header">
-                    <h2>🔐 Đăng Nhập Hệ Thống</h2>
-                    <p>Vui lòng đăng nhập để truy cập hệ thống quản lý link</p>
+                    <h2>🔐 Đăng Nhập Hệ Thống nội bộ PH</h2>
+                    <p>Vui lòng đăng nhập để truy cập hệ thống quản lý</p>
                 </div>
 
                 <form onSubmit={handleSubmit}>
@@ -77,24 +77,6 @@ function LoginForm() {
                     </button>
                 </form>
 
-                <div className="demo-accounts">
-                    <h4>🔑 Tài khoản demo:</h4>
-                    <div className="demo-account">
-                        <strong>Admin:</strong> admin / password
-                    </div>
-                    <div className="demo-account">
-                        <strong>Ban Giám Đốc:</strong> director / password
-                    </div>
-                    <div className="demo-account">
-                        <strong>Quản Lý:</strong> manager / password
-                    </div>
-                    <div className="demo-account">
-                        <strong>Nhân Viên:</strong> employee / password
-                    </div>
-                    <div className="demo-note">
-                        <small>💡 Mật khẩu mặc định: admin123, director123, manager123, employee123</small>
-                    </div>
-                </div>
             </div>
         </div>
     );

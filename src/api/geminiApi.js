@@ -2,40 +2,124 @@
 // Lấy API key và model từ localStorage; fallback về biến môi trường/giá trị mặc định
 import { applyMasking } from '../utils/privacyFilter';
 
+// Utility function để handle các edge cases trên nginx deployment
+const safeStringCompare = (str1, str2) => {
+    try {
+        if (str1 === null || str1 === undefined || str2 === null || str2 === undefined) {
+            return false;
+        }
+        return String(str1).trim().toLowerCase() === String(str2).trim().toLowerCase();
+    } catch (error) {
+        console.error('Error in string comparison:', error);
+        return false;
+    }
+};
+
+// Utility function để safely get localStorage item
+const safeGetItem = (storage, key, defaultValue = null) => {
+    try {
+        if (!storage || !key) return defaultValue;
+        const value = storage.getItem(key);
+        return value !== null ? value : defaultValue;
+    } catch (error) {
+        console.error(`Error getting localStorage item ${key}:`, error);
+        return defaultValue;
+    }
+};
+
 const getLocalStorage = () => {
     try {
-        return window?.localStorage;
-    } catch (_) {
+        // Check if we're in browser environment
+        if (typeof window === 'undefined' || !window.localStorage) {
+            console.log('localStorage not available - not in browser or localStorage disabled');
+            return null;
+        }
+        
+        // Test localStorage access
+        const testKey = '__localStorage_test__';
+        window.localStorage.setItem(testKey, 'test');
+        window.localStorage.removeItem(testKey);
+        
+        console.log('localStorage access test successful');
+        return window.localStorage;
+    } catch (error) {
+        console.error('localStorage access failed:', error);
         return null;
     }
 };
 
 const getActiveApiKey = () => {
     const ls = getLocalStorage();
-    if (!ls) return process.env.REACT_APP_GEMINI_API_KEY;
+    const fallbackKey = process.env.REACT_APP_GEMINI_API_KEY;
+    
+    console.log('getActiveApiKey - localStorage available:', !!ls);
+    console.log('getActiveApiKey - fallback key available:', !!fallbackKey);
+    
+    if (!ls) {
+        console.log('Using fallback API key from environment');
+        return fallbackKey;
+    }
+    
     try {
-        const keys = JSON.parse(ls.getItem('gemini.api.keys') || '[]');
+        const keysStr = ls.getItem('gemini.api.keys');
         const selectedId = ls.getItem('gemini.api.selectedKeyId') || '';
+        
+        console.log('Keys from localStorage:', keysStr);
+        console.log('Selected ID:', selectedId);
+        
+        if (!keysStr) {
+            console.log('No keys in localStorage, using fallback');
+            return fallbackKey;
+        }
+        
+        const keys = JSON.parse(keysStr);
         const found = keys.find(k => k.id === selectedId);
-        return (found && found.value) || process.env.REACT_APP_GEMINI_API_KEY;
-    } catch (_) {
-        return process.env.REACT_APP_GEMINI_API_KEY;
+        
+        if (found && found.value) {
+            console.log('Using selected API key from localStorage');
+            return found.value;
+        }
+        
+        console.log('No valid key found, using fallback');
+        return fallbackKey;
+    } catch (error) {
+        console.error('Error accessing API keys from localStorage:', error);
+        console.log('Falling back to environment key');
+        return fallbackKey;
     }
 };
 
 const getModelFor = (feature /* 'quick' | 'smart' */) => {
     const ls = getLocalStorage();
-    const defaultModel = 'gemini-2.5-flash';
-    if (!ls) return defaultModel;
-    try {
-        if (feature === 'quick') {
-            return ls.getItem('gemini.model.quick') || defaultModel;
-        }
-        if (feature === 'smart') {
-            return ls.getItem('gemini.model.smart') || defaultModel;
-        }
+    const defaultModel = 'gemini-flash-lite-latest';
+    
+    // Debug logging for nginx deployment
+    console.log('getModelFor called with feature:', feature, 'type:', typeof feature);
+    console.log('localStorage available:', !!ls);
+    
+    if (!ls) {
+        console.log('localStorage not available, using default model:', defaultModel);
         return defaultModel;
-    } catch (_) {
+    }
+    
+    try {
+        // Use safe string comparison
+        if (safeStringCompare(feature, 'quick')) {
+            const quickModel = safeGetItem(ls, 'gemini.model.quick', defaultModel);
+            console.log('Quick model from localStorage:', quickModel);
+            return quickModel;
+        }
+        if (safeStringCompare(feature, 'smart')) {
+            const smartModel = safeGetItem(ls, 'gemini.model.smart', defaultModel);
+            console.log('Smart model from localStorage:', smartModel);
+            return smartModel;
+        }
+        
+        console.log('Unknown feature, using default model:', defaultModel);
+        return defaultModel;
+    } catch (error) {
+        console.error('Error accessing localStorage in getModelFor:', error);
+        console.log('Falling back to default model:', defaultModel);
         return defaultModel;
     }
 };
@@ -50,7 +134,7 @@ export const searchLinksWithGemini = async (links, searchQuery = '', privacyFilt
     if (!apiKey) {
         throw new Error('Gemini API key is not configured. Please set in Settings or REACT_APP_GEMINI_API_KEY.');
     }
-    const model = getModelFor('smart');
+    const model = getModelFor('defaultModel');
 
     try {
         const maskedLinks = maskLinksArray(links, privacyFilters);
@@ -172,7 +256,7 @@ export const askGeminiSpecificQuestion = async (question, links = [], privacyFil
     if (!apiKey) {
         throw new Error('Gemini API key is not configured.');
     }
-    const model = getModelFor('quick');
+    const model = getModelFor('defaultModel');
 
     try {
         const maskedLinks = maskLinksArray(links, privacyFilters);
@@ -262,7 +346,7 @@ export const deepSearchWithReference = async (links, referenceUrl = '', searchCo
     if (!apiKey) {
         throw new Error('Gemini API key is not configured.');
     }
-    const model = getModelFor('smart');
+    const model = getModelFor('defaultModel');
 
     try {
         // Kiểm tra xem searchContext có chứa nội dung đã cào không
@@ -345,7 +429,7 @@ export const askCustomerSupport = async (prompt) => {
     if (!apiKey) {
         throw new Error('Gemini API key is not configured.');
     }
-    const model = getModelFor('defaultModel');
+    const model = "gemini-2.5-flash";
 
     try {
         const url = buildApiUrl(model, apiKey);
