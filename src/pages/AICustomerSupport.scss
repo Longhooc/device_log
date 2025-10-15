@@ -5,6 +5,11 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
+    
+    /* Mobile specific padding */
+    &.mobile {
+        padding-top: 50px; /* Add space for navigation bar on mobile only */
+    }
 }
 
 .ai-header {
@@ -16,11 +21,15 @@
         font-size: 2.5rem;
         margin-bottom: 10px;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        overflow-wrap: anywhere;
+        word-break: break-word;
     }
     
     p {
         font-size: 1.1rem;
         opacity: 0.9;
+        overflow-wrap: anywhere;
+        word-break: break-word;
     }
 }
 
@@ -107,6 +116,8 @@
     p {
         margin: 5px 0;
         color: #666;
+        overflow-wrap: anywhere;
+        word-break: break-word;
         
         strong {
             color: #333;
@@ -127,6 +138,9 @@
             max-height: 100px;
             overflow-y: auto;
             line-height: 1.4;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
     }
 }
@@ -283,6 +297,8 @@
                 line-height: 1.5;
                 white-space: pre-wrap;
                 text-align: left;
+                overflow-wrap: anywhere;
+                word-break: break-word;
                 .cursor {
                     display: inline-block;
                     width: 8px;
@@ -299,6 +315,8 @@
                 font-size: 12px;
                 color: #666;
                 font-style: italic;
+                word-break: break-all;
+                overflow-wrap: anywhere;
             }
         }
     }

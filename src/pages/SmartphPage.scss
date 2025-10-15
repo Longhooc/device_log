@@ -39,6 +39,8 @@
                         font-weight: 800;
                         text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
                         letter-spacing: -1px;
+                        overflow-wrap: anywhere;
+                        word-break: break-word;
                     }
 
                     p {
@@ -47,6 +49,8 @@
                         opacity: 0.95;
                         line-height: 1.4;
                         font-weight: 300;
+                        overflow-wrap: anywhere;
+                        word-break: break-word;
                     }
                 }
 
@@ -353,6 +357,8 @@
                 margin-bottom: 10px;
                 font-size: 1.2rem;
                 line-height: 1.3;
+                overflow-wrap: anywhere;
+                word-break: break-word;
             }
             
             .link-description {
@@ -360,6 +366,8 @@
                 line-height: 1.5;
                 margin-bottom: 15px;
                 font-size: 0.95rem;
+                overflow-wrap: anywhere;
+                word-break: break-word;
             }
             
             .access-restricted {
@@ -544,19 +552,17 @@
 
     /* Responsive Design */
     @media (max-width: 768px) {
-        padding: 15px;
+        padding: 71px 15px 15px; // add top offset for fixed nav
 
-        .header {
+        .smartph-header {
             padding: 20px;
 
             .header-content {
                 .header-text {
-                    h1 {
-                        font-size: 2rem;
-                    }
-
-                    p {
-                        font-size: 1rem;
+                    .header-icon { font-size: 3rem; }
+                    .header-title {
+                        h1 { font-size: 2rem; word-break: break-word; }
+                        p { font-size: 1rem; word-break: break-word; }
                     }
                 }
 
@@ -619,8 +625,9 @@
             grid-template-columns: 1fr;
         }
 
-        .header .header-content .header-text h1 {
+        .smartph-header .header-content .header-text .header-title h1 {
             font-size: 1.8rem;
+            word-break: break-word;
         }
         
         .add-form .form-grid {

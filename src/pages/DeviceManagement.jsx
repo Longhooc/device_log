@@ -219,6 +219,7 @@ function DeviceManagement() {
                         <button onClick={sortByDate}>Sắp xếp theo ngày giờ</button>
                     </div>
 
+                    <div className="table-wrapper">
                     <table border="1" id="dataTable">
                         <thead>
                             <tr>
@@ -249,6 +250,7 @@ function DeviceManagement() {
                             )}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
 

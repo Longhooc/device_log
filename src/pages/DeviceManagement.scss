@@ -1,7 +1,7 @@
 /* DeviceManagement.scss - Styles for Device Management page */
 .device-management {
     padding: 20px;
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 
@@ -102,6 +102,12 @@
             }
         }
 
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -124,6 +130,25 @@
                 border-bottom: 1px solid #e1e5e9;
                 font-size: 0.9rem;
                 vertical-align: top;
+                word-break: break-word;
+                
+                a {
+                    color: #007bff;
+                    text-decoration: none;
+                    font-weight: 500;
+                    border-bottom: 1px solid transparent;
+                    transition: all 0.3s ease;
+                    
+                    &:hover {
+                        color: #0056b3;
+                        border-bottom-color: #0056b3;
+                        text-decoration: underline;
+                    }
+                    
+                    &:visited {
+                        color: #6f42c1;
+                    }
+                }
 
                 &:last-child {
                     text-align: center;
@@ -318,7 +343,7 @@
 
     /* Responsive Design */
     @media (max-width: 768px) {
-        padding: 15px;
+        padding: 71px 15px 15px; // add top offset for fixed nav
 
         .page-header {
             padding: 20px;
@@ -357,9 +382,9 @@
                 }
             }
 
+            .table-wrapper { overflow-x: auto; }
             table {
                 font-size: 0.8rem;
-
                 th,
                 td {
                     padding: 8px 6px;
@@ -394,9 +419,9 @@
         .input-section {
             padding: 15px;
 
+            .table-wrapper { overflow-x: auto; }
             table {
                 font-size: 0.7rem;
-
                 th,
                 td {
                     padding: 6px 4px;

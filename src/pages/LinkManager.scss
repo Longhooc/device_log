@@ -432,6 +432,8 @@
                         margin: 0;
                         font-size: 0.85rem;
                         line-height: 1.5;
+                        overflow-wrap: anywhere;
+                        word-break: break-word;
                     }
                 }
 
@@ -542,15 +544,21 @@
         .response-content {
             text-align: justify;
             line-height: 1.35;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
         .response-content p {
             margin: 6px 0;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
         .response-content p a {
             text-decoration: underline;
             color: #3498db;
             transition: background 0.3s ease;
             cursor: pointer;
+            word-break: break-all;
+            overflow-wrap: anywhere;
         }
         .response-content p a:hover {
             background: rgba(52,152,219,0.1);
@@ -962,6 +970,22 @@
         
         .links-grid {
             grid-template-columns: 1fr;
+        }
+        
+        .deep-search-form {
+            .deep-search-actions {
+                .btn-search {
+                    padding: 15px 25px;
+                    font-size: 16px;
+                    min-height: 50px;
+                }
+                
+                .btn-cancel {
+                    padding: 15px 25px;
+                    font-size: 16px;
+                    min-height: 50px;
+                }
+            }
         }
     }
 }

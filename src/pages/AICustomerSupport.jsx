@@ -3,6 +3,7 @@ import './AICustomerSupport.scss';
 import { validateGoogleDocsUrl, getDocumentTypeFromUrl, formatUrl } from '../api/aiCustomerSupportApi';
 import { scrapeGoogleDocContent } from '../utils/contentScraper';
 import { askCustomerSupport } from '../api/geminiApi';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const AICustomerSupport = () => {
     // console.log('🎯 [AI Support] Component initialized');
@@ -33,6 +34,9 @@ const AICustomerSupport = () => {
     // Refs
     const chatContainerRef = useRef(null);
     const questionInputRef = useRef(null);
+
+    // Responsive mode (auto-detect only)
+    const isMobile = useIsMobile(768);
 
     // Auto scroll to bottom when new messages are added
     useEffect(() => {
@@ -322,7 +326,7 @@ ${compactContent}
     };
 
     return (
-        <div className="ai-customer-support">
+        <div className={`ai-customer-support ${isMobile ? 'mobile' : 'desktop'}`}>
             <div className="ai-header">
                 <h2>🤖 AI Hỗ Trợ Khách Hàng</h2>
                 <p>Trả lời khách hàng chuyên nghiệp dựa trên Google Docs doanh nghiệp</p>

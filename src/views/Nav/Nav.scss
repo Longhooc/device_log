@@ -41,3 +41,34 @@
       }
   }
 }
+
+// Mobile: keep nav always visible
+@media (max-width: 768px) {
+  .topnav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 2000;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    height: 56px;
+
+    a {
+      padding: 0 12px;
+      font-size: 14px;
+      flex: 0 0 auto;
+    }
+
+    .logo-container {
+      padding: 6px 0;
+
+      .logo {
+        height: 40px;
+      }
+    }
+  }
+}
