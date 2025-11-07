@@ -79,14 +79,27 @@ function LinkManager() {
     const linksWithPermissions = links.links;
 
     // Filter links (hiển thị tất cả, không ẩn theo quyền)
-    const filteredLinks = linksWithPermissions.filter(link => {
-        // Kiểm tra tìm kiếm và phòng ban
-        const matchesSearch = link.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            (link.description && link.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchesDepartment = selectedDepartment === 'all' || link.department === selectedDepartment;
-        
-        return matchesSearch && matchesDepartment;
-    });
+    const filteredLinks = linksWithPermissions
+        .filter(link => {
+            // Kiểm tra tìm kiếm và phòng ban
+            const matchesSearch = link.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                (link.description && link.description.toLowerCase().includes(searchTerm.toLowerCase()));
+            const matchesDepartment = selectedDepartment === 'all' || link.department === selectedDepartment;
+            
+            return matchesSearch && matchesDepartment;
+        })
+        .sort((a, b) => {
+            // Ưu tiên hiển thị những link có quyền xem lên đầu
+            const aHasAccess = a.url !== null && !a._restricted;
+            const bHasAccess = b.url !== null && !b._restricted;
+            
+            // Link có quyền xem sẽ được đặt trước link không có quyền
+            if (aHasAccess && !bHasAccess) return -1;
+            if (!aHasAccess && bHasAccess) return 1;
+            
+            // Nếu cùng trạng thái quyền, giữ nguyên thứ tự ban đầu
+            return 0;
+        });
 
     // Handlers
     const handleAddLink = async () => {
