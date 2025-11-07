@@ -22,6 +22,7 @@ function AdminPanel() {
     const [isLoading, setIsLoading] = useState(false);
     const [selectedLinkId, setSelectedLinkId] = useState(null);
     const [linkPermissionUsers, setLinkPermissionUsers] = useState([]);
+    const [selectedDepartmentForAdd, setSelectedDepartmentForAdd] = useState('');
     const [newUser, setNewUser] = useState({
         username: '',
         password: '',
@@ -250,8 +251,66 @@ function AdminPanel() {
         }
     };
 
+    const handleAddUsersByDepartment = async (linkId, department) => {
+        if (!department) {
+            alert('Vui lòng chọn phòng ban!');
+            return;
+        }
+
+        // Get all users of the selected department that don't have permission yet
+        const departmentUsersWithoutPermission = users.filter(
+            u => u.department === department && !linkPermissionUsers.some(pu => pu.id === u.id)
+        );
+
+        if (departmentUsersWithoutPermission.length === 0) {
+            const departmentName = USER_DEPARTMENTS.find(d => d.value === department)?.label || department;
+            alert(`Tất cả user của phòng ban ${departmentName} đã có quyền truy cập link này!`);
+            return;
+        }
+
+        const departmentName = USER_DEPARTMENTS.find(d => d.value === department)?.label || department;
+        if (!window.confirm(`Bạn có chắc chắn muốn thêm ${departmentUsersWithoutPermission.length} user của phòng ban ${departmentName} vào quyền truy cập link này?`)) {
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            let successCount = 0;
+            let failCount = 0;
+
+            // Add all users of the department one by one
+            for (const user of departmentUsersWithoutPermission) {
+                try {
+                    await addUserToLinkPermissions(linkId, user.id);
+                    successCount++;
+                } catch (error) {
+                    console.warn(`Failed to add user ${user.username} to link permissions:`, error);
+                    failCount++;
+                }
+            }
+
+            // Reload permission users list
+            await loadLinkPermissionUsers(linkId);
+            
+            // Reset department selection
+            setSelectedDepartmentForAdd('');
+
+            if (failCount === 0) {
+                alert(`Thêm thành công ${successCount} user của phòng ban ${departmentName} vào quyền truy cập!`);
+            } else {
+                alert(`Thêm thành công ${successCount} user, ${failCount} user thất bại.`);
+            }
+        } catch (error) {
+            console.error('Error adding users by department to link permissions:', error);
+            alert('Lỗi khi thêm user: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleLinkSelect = async (linkId) => {
         setSelectedLinkId(linkId);
+        setSelectedDepartmentForAdd('');
         await loadLinkPermissionUsers(linkId);
     };
 
@@ -511,9 +570,40 @@ function AdminPanel() {
                                                     className="btn-primary"
                                                     onClick={() => handleAddAllUsersToLink(selectedLinkId)}
                                                     disabled={isLoading || users.filter(u => !linkPermissionUsers.some(pu => pu.id === u.id)).length === 0}
-                                                    style={{ width: '100%' }}
+                                                    style={{ width: '100%', marginBottom: '10px' }}
                                                 >
                                                     {isLoading ? 'Đang thêm...' : '➕ Thêm tất cả user có quyền xem'}
+                                                </button>
+                                            </div>
+                                            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #e0e0e0' }}>
+                                                <h4 style={{ marginBottom: '10px', fontSize: '14px' }}>Thêm user theo phòng ban:</h4>
+                                                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                                    <select
+                                                        value={selectedDepartmentForAdd}
+                                                        onChange={(e) => setSelectedDepartmentForAdd(e.target.value)}
+                                                        style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                                                        disabled={isLoading}
+                                                    >
+                                                        <option value="">-- Chọn phòng ban --</option>
+                                                        {USER_DEPARTMENTS.map(dept => {
+                                                            const departmentUsersCount = users.filter(
+                                                                u => u.department === dept.value && !linkPermissionUsers.some(pu => pu.id === u.id)
+                                                            ).length;
+                                                            return (
+                                                                <option key={dept.value} value={dept.value}>
+                                                                    {dept.label} ({departmentUsersCount} user chưa có quyền)
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </select>
+                                                </div>
+                                                <button
+                                                    className="btn-secondary"
+                                                    onClick={() => handleAddUsersByDepartment(selectedLinkId, selectedDepartmentForAdd)}
+                                                    disabled={isLoading || !selectedDepartmentForAdd || users.filter(u => u.department === selectedDepartmentForAdd && !linkPermissionUsers.some(pu => pu.id === u.id)).length === 0}
+                                                    style={{ width: '100%' }}
+                                                >
+                                                    {isLoading ? 'Đang thêm...' : '➕ Thêm tất cả user của phòng ban'}
                                                 </button>
                                             </div>
                                         </div>
