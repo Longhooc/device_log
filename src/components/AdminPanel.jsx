@@ -155,7 +155,7 @@ function AdminPanel() {
             return;
         }
         
-        if (window.confirm(`Bạn có chắc chắn muốn xóa người dùng "${userToDelete.name}" (${userToDelete.username})?`)) {
+        if (window.confirm(`⚠️ CẢNH BÁO: Bạn có chắc chắn muốn XÓA HOÀN TOÀN người dùng "${userToDelete.name}" (${userToDelete.username})?\n\nHành động này sẽ:\n- Xóa user khỏi database\n- Xóa tất cả quyền truy cập links của user\n- Không thể hoàn tác!\n\nBạn có chắc chắn muốn tiếp tục?`)) {
             try {
                 setIsLoading(true);
                 await deleteUser(userId);
@@ -351,9 +351,9 @@ function AdminPanel() {
                     </div>
                     
                     <div style={{marginBottom: '15px', padding: '10px', background: '#fff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                        <p style={{margin: '0', color: '#666', fontSize: '14px'}}>
-                            ℹ️ <strong>Lưu ý:</strong> Xóa người dùng sẽ vô hiệu hóa tài khoản (soft delete). 
-                            User đã xóa không thể đăng nhập nhưng vẫn lưu trong database để theo dõi lịch sử.
+                        <p style={{margin: '0', color: '#d32f2f', fontSize: '14px'}}>
+                            ⚠️ <strong>Cảnh báo:</strong> Xóa người dùng sẽ xóa hoàn toàn khỏi database và tất cả dữ liệu liên quan (quyền truy cập links). 
+                            Hành động này không thể hoàn tác!
                         </p>
                         <div style={{fontSize: '12px', color: '#999', textAlign: 'right'}}>
                             <strong>Đang đăng nhập:</strong> {user?.name} ({user?.username})<br/>

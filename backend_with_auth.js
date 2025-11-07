@@ -242,7 +242,7 @@ app.post('/api/users', authenticateToken, authorizeRole(['admin']), async (req, 
     }
 });
 
-// 6. Xóa user (chỉ admin)
+// 6. Xóa user (chỉ admin) - Hard delete: xóa hoàn toàn khỏi database
 app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), (req, res) => {
     const userId = req.params.id;
     
@@ -251,19 +251,71 @@ app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), (req, 
         return res.status(400).json({ message: 'Không thể xóa chính mình' });
     }
     
-    const sql = 'UPDATE users SET is_active = FALSE WHERE id = ?';
-    
-    db.query(sql, [userId], (err, result) => {
+    // Transaction: xóa tất cả dữ liệu liên quan đến user
+    db.beginTransaction(err => {
         if (err) {
-            console.error('Lỗi khi xóa user:', err);
+            console.error('Lỗi khi bắt đầu transaction:', err);
             return res.status(500).json({ message: 'Lỗi hệ thống' });
         }
         
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Không tìm thấy user' });
-        }
-        
-        res.json({ message: 'Xóa user thành công' });
+        // 1. Xóa permissions trong link_user_permissions
+        db.query('DELETE FROM link_user_permissions WHERE user_id = ?', [userId], (err) => {
+            if (err) {
+                console.error('Lỗi khi xóa link_user_permissions:', err);
+                return db.rollback(() => {
+                    res.status(500).json({ message: 'Lỗi hệ thống' });
+                });
+            }
+            
+            // 2. Xóa permissions trong smartph_link_user_permissions
+            db.query('DELETE FROM smartph_link_user_permissions WHERE user_id = ?', [userId], (err) => {
+                if (err) {
+                    console.error('Lỗi khi xóa smartph_link_user_permissions:', err);
+                    return db.rollback(() => {
+                        res.status(500).json({ message: 'Lỗi hệ thống' });
+                    });
+                }
+                
+                // 3. Xóa permissions trong bestlab_link_user_permissions
+                db.query('DELETE FROM bestlab_link_user_permissions WHERE user_id = ?', [userId], (err) => {
+                    if (err) {
+                        console.error('Lỗi khi xóa bestlab_link_user_permissions:', err);
+                        return db.rollback(() => {
+                            res.status(500).json({ message: 'Lỗi hệ thống' });
+                        });
+                    }
+                    
+                    // 4. Xóa user khỏi bảng users
+                    db.query('DELETE FROM users WHERE id = ?', [userId], (err, result) => {
+                        if (err) {
+                            console.error('Lỗi khi xóa user:', err);
+                            return db.rollback(() => {
+                                res.status(500).json({ message: 'Lỗi hệ thống' });
+                            });
+                        }
+                        
+                        if (result.affectedRows === 0) {
+                            return db.rollback(() => {
+                                res.status(404).json({ message: 'Không tìm thấy user' });
+                            });
+                        }
+                        
+                        // Commit transaction
+                        db.commit(commitErr => {
+                            if (commitErr) {
+                                console.error('Lỗi khi commit transaction:', commitErr);
+                                return db.rollback(() => {
+                                    res.status(500).json({ message: 'Lỗi hệ thống' });
+                                });
+                            }
+                            
+                            console.log(`User ${userId} đã được xóa hoàn toàn khỏi database`);
+                            res.json({ message: 'Xóa user thành công (đã xóa hoàn toàn khỏi database)' });
+                        });
+                    });
+                });
+            });
+        });
     });
 });
 
