@@ -203,6 +203,53 @@ function AdminPanel() {
         }
     };
 
+    const handleAddAllUsersToLink = async (linkId) => {
+        // Get all users that don't have permission yet
+        const usersWithoutPermission = users.filter(
+            u => !linkPermissionUsers.some(pu => pu.id === u.id)
+        );
+
+        if (usersWithoutPermission.length === 0) {
+            alert('Tất cả user đã có quyền truy cập link này!');
+            return;
+        }
+
+        if (!window.confirm(`Bạn có chắc chắn muốn thêm ${usersWithoutPermission.length} user vào quyền truy cập link này?`)) {
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            let successCount = 0;
+            let failCount = 0;
+
+            // Add all users one by one
+            for (const user of usersWithoutPermission) {
+                try {
+                    await addUserToLinkPermissions(linkId, user.id);
+                    successCount++;
+                } catch (error) {
+                    console.warn(`Failed to add user ${user.username} to link permissions:`, error);
+                    failCount++;
+                }
+            }
+
+            // Reload permission users list
+            await loadLinkPermissionUsers(linkId);
+
+            if (failCount === 0) {
+                alert(`Thêm thành công ${successCount} user vào quyền truy cập!`);
+            } else {
+                alert(`Thêm thành công ${successCount} user, ${failCount} user thất bại.`);
+            }
+        } catch (error) {
+            console.error('Error adding all users to link permissions:', error);
+            alert('Lỗi khi thêm user: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleLinkSelect = async (linkId) => {
         setSelectedLinkId(linkId);
         await loadLinkPermissionUsers(linkId);
@@ -458,6 +505,16 @@ function AdminPanel() {
                                                         ))
                                                     }
                                                 </select>
+                                            </div>
+                                            <div style={{ marginTop: '10px' }}>
+                                                <button
+                                                    className="btn-primary"
+                                                    onClick={() => handleAddAllUsersToLink(selectedLinkId)}
+                                                    disabled={isLoading || users.filter(u => !linkPermissionUsers.some(pu => pu.id === u.id)).length === 0}
+                                                    style={{ width: '100%' }}
+                                                >
+                                                    {isLoading ? 'Đang thêm...' : '➕ Thêm tất cả user có quyền xem'}
+                                                </button>
                                             </div>
                                         </div>
 
