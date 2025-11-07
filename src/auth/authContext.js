@@ -96,7 +96,8 @@ export const AuthProvider = ({ children }) => {
 
     // Đăng nhập
     const login = async (username, password) => {
-        setIsLoading(true);
+        // Không set isLoading ở đây để tránh làm ProtectedRoute re-render
+        // LoginForm sẽ tự quản lý loading state
         try {
             const result = await loginUser(username, password);
             if (result.success) {
@@ -107,9 +108,14 @@ export const AuthProvider = ({ children }) => {
             }
         } catch (error) {
             console.error('Login error:', error);
-            return { success: false, message: 'Lỗi đăng nhập' };
-        } finally {
-            setIsLoading(false);
+            // Pass through error message for better error handling
+            if (error.message === 'TIMEOUT' || error.message === 'NETWORK_ERROR') {
+                return { success: false, message: 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.' };
+            } else if (error.message === 'SERVER_ERROR') {
+                return { success: false, message: 'Lỗi server. Vui lòng thử lại sau.' };
+            } else {
+                return { success: false, message: error.message || 'Lỗi đăng nhập' };
+            }
         }
     };
 

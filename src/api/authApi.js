@@ -17,6 +17,8 @@ export const loginUser = async (username, password) => {
         const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
             username,
             password
+        }, {
+            timeout: 5000 // 10 seconds timeout
         });
         
         if (response.data.success) {
@@ -25,14 +27,28 @@ export const loginUser = async (username, password) => {
             localStorage.setItem('user', JSON.stringify(response.data.user));
             return { success: true, user: response.data.user };
         } else {
-            return { success: false, message: response.data.message };
+            return { success: false, message: response.data.message || 'Đăng nhập thất bại' };
         }
     } catch (error) {
         console.error('Login error:', error);
-        if (error.response?.status === 401) {
-            return { success: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng' };
+        
+        // Handle network/server connection errors
+        if (axios.isAxiosError(error)) {
+            if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+                throw new Error('TIMEOUT');
+            } else if (error.code === 'ERR_NETWORK' || !error.response) {
+                throw new Error('NETWORK_ERROR');
+            } else if (error.response?.status === 401) {
+                return { success: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng' };
+            } else if (error.response?.status >= 500) {
+                throw new Error('SERVER_ERROR');
+            } else {
+                return { success: false, message: error.response?.data?.message || 'Đăng nhập thất bại' };
+            }
         }
-        return { success: false, message: 'Lỗi đăng nhập' };
+        
+        // Re-throw to be handled by LoginForm
+        throw error;
     }
 };
 
