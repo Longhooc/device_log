@@ -793,6 +793,30 @@
                 line-height: 1.5;
                 margin-bottom: 15px;
                 font-size: 0.95rem;
+                max-height: 120px;
+                overflow-y: auto;
+                overflow-x: hidden;
+                word-wrap: break-word;
+                padding-right: 8px;
+                
+                // Custom scrollbar styling
+                &::-webkit-scrollbar {
+                    width: 6px;
+                }
+                
+                &::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-radius: 10px;
+                }
+                
+                &::-webkit-scrollbar-thumb {
+                    background: #bdc3c7;
+                    border-radius: 10px;
+                    
+                    &:hover {
+                        background: #95a5a6;
+                    }
+                }
             }
             
             .access-restricted {
