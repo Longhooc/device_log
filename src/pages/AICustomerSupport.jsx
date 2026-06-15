@@ -243,7 +243,7 @@ ${compactContent}
             {/* ===== HEADER ===== */}
             <div className="ais-header">
                 <div className="ais-header-left">
-                    <div className="ais-avatar">🤖</div>
+                    <div className="ais-avatar"></div>
                     <div className="ais-title-block">
                         <h1 className="ais-title">AI Hỗ Trợ Khách Hàng</h1>
                         <span className={`ais-status-dot ${documentData ? 'online' : 'loading'}`}>

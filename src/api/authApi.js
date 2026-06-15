@@ -23,9 +23,14 @@ export const loginUser = async (username, password) => {
         
         if (response.data.success) {
             // Lưu token vào localStorage
-            localStorage.setItem('authToken', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-            return { success: true, user: response.data.user };
+            const token = response.data.data ? response.data.data.token : response.data.token;
+            const user = response.data.data ? response.data.data.user : response.data.user;
+            if (user) {
+                user.role = user.isLinkAdmin ? 'admin' : 'employee';
+            }
+            localStorage.setItem('authToken', token);
+            localStorage.setItem('user', JSON.stringify(user));
+            return { success: true, user: user };
         } else {
             return { success: false, message: response.data.message || 'Đăng nhập thất bại' };
         }
@@ -75,7 +80,11 @@ export const getCurrentUser = async () => {
             }
         });
         
-        return response.data.user;
+        const user = response.data.data || response.data.user;
+        if (user) {
+            user.role = user.isLinkAdmin ? 'admin' : 'employee';
+        }
+        return user;
     } catch (error) {
         console.error('Get current user error:', error);
         // Token có thể đã hết hạn, xóa khỏi localStorage
@@ -91,13 +100,17 @@ export const getCurrentUser = async () => {
 export const getAllUsers = async () => {
     try {
         const token = localStorage.getItem('authToken');
-        const response = await axios.get(`${API_BASE_URL}/api/users`, {
+        const response = await axios.get(`${API_BASE_URL}/api/employees`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
         
-        return response.data;
+        let users = response.data.data || response.data;
+        if (Array.isArray(users)) {
+            users = users.map(u => ({ ...u, role: u.isLinkAdmin ? 'admin' : 'employee' }));
+        }
+        return users;
     } catch (error) {
         console.error('Get all users error:', error);
         throw error;
@@ -112,14 +125,24 @@ export const getAllUsers = async () => {
 export const createUser = async (userData) => {
     try {
         const token = localStorage.getItem('authToken');
-        const response = await axios.post(`${API_BASE_URL}/api/users`, userData, {
+        const payload = { ...userData };
+        if (payload.role) {
+            payload.isLinkAdmin = payload.role === 'admin' ? 1 : 0;
+            delete payload.role;
+        }
+
+        const response = await axios.post(`${API_BASE_URL}/api/employees`, payload, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             }
         });
         
-        return response.data;
+        const createdUser = response.data.data || response.data;
+        if (createdUser) {
+            createdUser.role = createdUser.isLinkAdmin ? 'admin' : 'employee';
+        }
+        return createdUser;
     } catch (error) {
         console.error('Create user error:', error);
         throw error;
@@ -134,7 +157,7 @@ export const createUser = async (userData) => {
 export const deleteUser = async (userId) => {
     try {
         const token = localStorage.getItem('authToken');
-        const response = await axios.delete(`${API_BASE_URL}/api/users/${userId}`, {
+        const response = await axios.delete(`${API_BASE_URL}/api/employees/${userId}`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }

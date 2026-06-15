@@ -68,10 +68,17 @@ export const AuthProvider = ({ children }) => {
     // Khởi tạo user từ localStorage và API
     useEffect(() => {
         const initializeAuth = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryToken = urlParams.get('token');
+            if (queryToken) {
+                localStorage.setItem('authToken', queryToken);
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
             const savedUser = localStorage.getItem('user');
             const token = localStorage.getItem('authToken');
             
-            if (savedUser && token) {
+            if (token) {
                 try {
                     // Kiểm tra token còn hợp lệ không
                     const currentUser = await getCurrentUser();
