@@ -13,12 +13,10 @@ const AICustomerSupport = () => {
     const [currentQuestion, setCurrentQuestion] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [chatHistory, setChatHistory] = useState([]);
-    const [isTyping, setIsTyping] = useState(false);
     const [showKnowledge, setShowKnowledge] = useState(false);
 
     // Refs
     const chatContainerRef = useRef(null);
-    const questionInputRef = useRef(null);
     const textareaRef = useRef(null);
 
     // Responsive mode
@@ -36,6 +34,7 @@ const AICustomerSupport = () => {
         if (documentUrl && !documentData) {
             handleReadGoogleDoc();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [documentUrl]);
 
     // Auto resize textarea
@@ -109,7 +108,7 @@ const AICustomerSupport = () => {
         try {
             const compactContent = (documentData.content || '')
                 .replace(/(\s)\1{2,}/g, '$1')
-                .replace(/([\-=_])\1{4,}/g, '$1$1$1')
+                .replace(/([-=_])\1{4,}/g, '$1$1$1')
                 .slice(0, 600000);
 
             const recentHistory = chatHistory
@@ -160,8 +159,6 @@ ${compactContent}
                 return filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
             };
 
-            setIsTyping(true);
-
             // Thinking message
             const thinkingId = Date.now() + 1;
             setChatHistory(prev => [...prev, {
@@ -208,8 +205,6 @@ ${compactContent}
                 setChatHistory(prev => prev.map(m => m.id === aiId ? { ...m, content: fullText.slice(0, i) } : m));
                 if (i < fullText.length) {
                     requestAnimationFrame(step);
-                } else {
-                    setIsTyping(false);
                 }
             };
             step();
@@ -221,7 +216,6 @@ ${compactContent}
                 content: `Lỗi: ${error.message}`,
                 timestamp: new Date()
             }]);
-            setIsTyping(false);
         } finally {
             setIsProcessing(false);
         }
