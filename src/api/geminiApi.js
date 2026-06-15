@@ -34,12 +34,12 @@ const getLocalStorage = () => {
             console.log('localStorage not available - not in browser or localStorage disabled');
             return null;
         }
-        
+
         // Test localStorage access
         const testKey = '__localStorage_test__';
         window.localStorage.setItem(testKey, 'test');
         window.localStorage.removeItem(testKey);
-        
+
         console.log('localStorage access test successful');
         return window.localStorage;
     } catch (error) {
@@ -48,38 +48,67 @@ const getLocalStorage = () => {
     }
 };
 
+const DEFAULT_GEMINI_API_URL = 'https://generativelanguage.googleapis.com';
+
+const getConfiguredApiUrl = () => {
+    const apiUrl = process.env.REACT_APP_GEMINI_API_URL || DEFAULT_GEMINI_API_URL;
+    return String(apiUrl).replace(/\/+$/, '');
+};
+
+const isOpenAICompatibleApi = (apiUrl) => {
+    const normalizedUrl = String(apiUrl || '').toLowerCase();
+    return normalizedUrl.includes('/v1') && !normalizedUrl.includes('googleapis.com');
+};
+
+const getTextFromAiResponse = (data) => {
+    if (data?.choices?.length > 0) {
+        return data.choices[0]?.message?.content || data.choices[0]?.text || '';
+    }
+
+    if (data?.candidates?.length > 0) {
+        return data.candidates[0]?.content?.parts?.[0]?.text || '';
+    }
+
+    return '';
+};
+
 const getActiveApiKey = () => {
     const ls = getLocalStorage();
     const fallbackKey = process.env.REACT_APP_GEMINI_API_KEY;
-    
+
     console.log('getActiveApiKey - localStorage available:', !!ls);
     console.log('getActiveApiKey - fallback key available:', !!fallbackKey);
-    
+
+    if (fallbackKey) {
+        console.log('Using API key from environment');
+        return fallbackKey;
+    }
+
     if (!ls) {
         console.log('Using fallback API key from environment');
         return fallbackKey;
     }
-    
+
     try {
         const keysStr = ls.getItem('gemini.api.keys');
         const selectedId = ls.getItem('gemini.api.selectedKeyId') || '';
-        
+
         console.log('Keys from localStorage:', keysStr);
         console.log('Selected ID:', selectedId);
-        
+
         if (!keysStr) {
             console.log('No keys in localStorage, using fallback');
             return fallbackKey;
         }
-        
+
         const keys = JSON.parse(keysStr);
         const found = keys.find(k => k.id === selectedId);
-        
+
         if (found && found.value) {
             console.log('Using selected API key from localStorage');
             return found.value;
         }
-        
+
         console.log('No valid key found, using fallback');
         return fallbackKey;
     } catch (error) {
@@ -91,17 +120,22 @@ const getActiveApiKey = () => {
 
 const getModelFor = (feature /* 'quick' | 'smart' */) => {
     const ls = getLocalStorage();
-    const defaultModel = 'gemini-flash-lite-latest';
-    
+    const defaultModel = process.env.REACT_APP_GEMINI_MODEL || 'gemini-flash-lite-latest';
+
+    if (process.env.REACT_APP_GEMINI_MODEL) {
+        console.log('Using model from environment:', defaultModel);
+        return defaultModel;
+    }
+
     // Debug logging for nginx deployment
     console.log('getModelFor called with feature:', feature, 'type:', typeof feature);
     console.log('localStorage available:', !!ls);
-    
+
     if (!ls) {
         console.log('localStorage not available, using default model:', defaultModel);
         return defaultModel;
     }
-    
+
     try {
         // Use safe string comparison
         if (safeStringCompare(feature, 'quick')) {
@@ -114,7 +148,7 @@ const getModelFor = (feature /* 'quick' | 'smart' */) => {
             console.log('Smart model from localStorage:', smartModel);
             return smartModel;
         }
-        
+
         console.log('Unknown feature, using default model:', defaultModel);
         return defaultModel;
     } catch (error) {
@@ -124,7 +158,74 @@ const getModelFor = (feature /* 'quick' | 'smart' */) => {
     }
 };
 
-const buildApiUrl = (model, apiKey) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+const buildApiUrl = (model, apiKey) => {
+    const apiUrl = getConfiguredApiUrl();
+
+    if (isOpenAICompatibleApi(apiUrl)) {
+        return `${apiUrl}/chat/completions`;
+    }
+
+    const geminiApiVersion = apiUrl.endsWith('/v1') ? 'v1' : 'v1beta';
+    const baseUrl = apiUrl.includes('googleapis.com') ? DEFAULT_GEMINI_API_URL : apiUrl;
+    return `${baseUrl}/${geminiApiVersion}/models/${model}:generateContent?key=${apiKey}`;
+};
+
+const callAiApi = async (prompt, model, apiKey, generationConfig = {}, safetySettings = null) => {
+    const apiUrl = getConfiguredApiUrl();
+    const url = buildApiUrl(model, apiKey);
+    const useOpenAICompatibleApi = isOpenAICompatibleApi(apiUrl);
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: useOpenAICompatibleApi
+            ? {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            }
+            : { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+            useOpenAICompatibleApi
+                ? {
+                    model,
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: generationConfig.temperature ?? 0.7,
+                    top_p: generationConfig.topP ?? 0.95,
+                    max_tokens: generationConfig.maxOutputTokens ?? 12048
+                }
+                : {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: 12048,
+                        ...generationConfig
+                    },
+                    ...(safetySettings ? { safetySettings } : {})
+                }
+        )
+    });
+
+    if (!response.ok) {
+        let errorMessage = response.statusText;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.error?.message || errorData.message || JSON.stringify(errorData);
+        } catch (_) {
+            errorMessage = await response.text();
+        }
+        throw new Error(`AI API error (${response.status}): ${errorMessage || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = getTextFromAiResponse(data);
+
+    if (!text) {
+        throw new Error('No response generated from AI API');
+    }
+
+    return text;
+};
 
 /**
  * Search and find relevant links using Gemini AI (smart search)
@@ -140,39 +241,18 @@ export const searchLinksWithGemini = async (links, searchQuery = '', privacyFilt
         const maskedLinks = maskLinksArray(links, privacyFilters);
         const maskedQuery = applyMasking(searchQuery, privacyFilters).masked;
         const prompt = createSearchPrompt(maskedLinks, maskedQuery);
-        const url = buildApiUrl(model, apiKey);
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 12048,
-                },
-                safetySettings: [
-                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
-                ]
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
-        }
-
-        const data = await response.json();
-        if (data.candidates && data.candidates.length > 0) {
-            return data.candidates[0].content?.parts?.[0]?.text || '';
-        } else {
-            throw new Error('No response generated from Gemini AI');
-        }
+        return await callAiApi(
+            prompt,
+            model,
+            apiKey,
+            { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 12048 },
+            [
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
+            ]
+        );
     } catch (error) {
         console.error('Error calling Gemini API:', error);
         throw error;
@@ -190,14 +270,14 @@ const createSearchPrompt = (links, searchQuery) => {
 Bạn là một trợ lý tra cứu thông tin. Dựa vào danh sách các links Google Docs/Sheets/Forms sau đây, hãy tìm và trả về CHÍNH XÁC những links liên quan đến câu hỏi của người dùng.
 
 DANH SÁCH LINKS HIỆN CÓ:
-${links.map((link, index) => 
-    `${index + 1}. Tiêu đề: "${link.title}"
+${links.map((link, index) =>
+        `${index + 1}. Tiêu đề: "${link.title}"
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có mô tả'}
    - URL: ${link.url || '[Locked]'}
    - Ngày thêm: ${link.dateAdded}`
-).join('\n\n')}
+    ).join('\n\n')}
 
 CÂU HỎI/YÊU CẦU TRA CỨU: "${searchQuery}"
 
@@ -279,27 +359,12 @@ ${maskedLinks.map((link, index) => `${index + 1}. "${link.title}"
 
 `;
 
-        const url = buildApiUrl(model, apiKey);
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 10024,
-                }
-            })
+        return await callAiApi(prompt, model, apiKey, {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 10024,
         });
-
-        if (!response.ok) {
-            throw new Error(`API error: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (error) {
         console.error('Error asking Gemini specific question:', error);
         throw error;
@@ -316,7 +381,7 @@ export const findLinksByCriteria = async (links, criteria, privacyFilters = []) 
 Dựa vào danh sách ${links.length} links sau đây, hãy tìm những links phù hợp với tiêu chí: "${criteria}"
 
 DANH SÁCH LINKS:
-${maskedLinks.map((link, i) => `${i+1}. "${link.title}"
+${maskedLinks.map((link, i) => `${i + 1}. "${link.title}"
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
    - Mô tả: ${link.description || 'Không có'}
@@ -351,7 +416,7 @@ export const deepSearchWithReference = async (links, referenceUrl = '', searchCo
     try {
         // Kiểm tra xem searchContext có chứa nội dung đã cào không
         const hasScrapedContent = searchContext && searchContext.includes('--- NỘI DUNG TÀI LIỆU THAM CHIẾU ---');
-        
+
         const maskedLinks = maskLinksArray(links, privacyFilters);
         let prompt = `
 Bạn là chuyên gia phân tích và so sánh tài liệu. 
@@ -359,7 +424,7 @@ Bạn là chuyên gia phân tích và so sánh tài liệu.
 ${searchContext ? `${searchContext}\n` : ''}
 
 DANH SÁCH TÀI LIỆU CẦN SO SÁNH:
-${maskedLinks.map((link, i) => `${i+1}. "${link.title}"
+${maskedLinks.map((link, i) => `${i + 1}. "${link.title}"
    - URL: ${link.url || '[Locked]'}
    - Phòng ban: ${link.department}
    - Loại: ${link.type}
@@ -392,28 +457,12 @@ FORMAT TRẢ LỜI:
 Trả lời bằng tiếng Việt, ngắn gọn, chỉ hiển thị thông tin quan trọng:
 `;
 
-        const url = buildApiUrl(model, apiKey);
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 12048,
-                }
-            })
+        return await callAiApi(prompt, model, apiKey, {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 12048,
         });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`API error: ${errorData.error?.message || response.statusText}`);
-        }
-
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Không tìm thấy tài liệu nào phù hợp.';
     } catch (error) {
         console.error('Error in deep search:', error);
         throw error;
@@ -429,31 +478,15 @@ export const askCustomerSupport = async (prompt) => {
     if (!apiKey) {
         throw new Error('Gemini API key is not configured.');
     }
-    const model = "gemini-2.5-flash";
+    const model = getModelFor('smart');
 
     try {
-        const url = buildApiUrl(model, apiKey);
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 12048,
-                }
-            })
+        return await callAiApi(prompt, model, apiKey, {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 12048,
         });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`API error: ${errorData.error?.message || response.statusText}`);
-        }
-
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (error) {
         console.error('Error asking customer support:', error);
         throw error;
@@ -471,27 +504,12 @@ const callGeminiWithPrompt = async (prompt, feature = 'smart') => {
     const model = getModelFor(feature);
 
     try {
-        const url = buildApiUrl(model, apiKey);
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 12048,
-                }
-            })
+        return await callAiApi(prompt, model, apiKey, {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 12048,
         });
-
-        if (!response.ok) {
-            throw new Error(`API error: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (error) {
         console.error('Error calling Gemini:', error);
         throw error;

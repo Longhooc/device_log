@@ -6,8 +6,9 @@ import { useState, useEffect } from 'react';
 export const useSettings = () => {
     const [apiKeys, setApiKeys] = useState([]);
     const [selectedKeyId, setSelectedKeyId] = useState('');
-    const [modelQuick, setModelQuick] = useState('gemini-flash-lite-latest');
-    const [modelSmart, setModelSmart] = useState('gemini-flash-lite-latest');
+    const defaultModel = process.env.REACT_APP_GEMINI_MODEL || 'gemini-flash-lite-latest';
+    const [modelQuick, setModelQuick] = useState(defaultModel);
+    const [modelSmart, setModelSmart] = useState(defaultModel);
     const [privacyFilters, setPrivacyFilters] = useState([]); // [{id, find, replace, flags}]
 
     useEffect(() => {
@@ -18,10 +19,10 @@ export const useSettings = () => {
         try {
             const storedKeys = JSON.parse(localStorage.getItem('gemini.api.keys') || '[]');
             const storedSelectedId = localStorage.getItem('gemini.api.selectedKeyId') || '';
-            const storedQuick = localStorage.getItem('gemini.model.quick') || 'gemini-flash-lite-latest';
-            const storedSmart = localStorage.getItem('gemini.model.smart') || 'gemini-flash-lite-latest';
+            const storedQuick = localStorage.getItem('gemini.model.quick') || defaultModel;
+            const storedSmart = localStorage.getItem('gemini.model.smart') || defaultModel;
             const storedPrivacy = JSON.parse(localStorage.getItem('gemini.privacy.filters') || '[]');
-            
+
             // Defaults if nothing stored yet
             const DEFAULT_API_KEYS = [
                 { id: 'sample', label: 'Sample (use env if empty)', value: '' }
@@ -60,7 +61,7 @@ export const useSettings = () => {
         const q = next.modelQuick ?? modelQuick;
         const s = next.modelSmart ?? modelSmart;
         const pf = next.privacyFilters ?? privacyFilters;
-        
+
         localStorage.setItem('gemini.api.keys', JSON.stringify(keys));
         localStorage.setItem('gemini.api.selectedKeyId', selId);
         localStorage.setItem('gemini.model.quick', q);
@@ -73,22 +74,22 @@ export const useSettings = () => {
             alert('Vui lòng nhập API key');
             return false;
         }
-        
+
         const id = Date.now().toString();
         const label = newApiKeyLabel?.trim() || `Key ${apiKeys.length + 1}`;
         const updated = [...apiKeys, { id, label, value: newApiKey.trim() }];
-        
+
         setApiKeys(updated);
         setSelectedKeyId(id);
         persistSettings({ apiKeys: updated, selectedKeyId: id });
-        
+
         return true;
     };
 
     const deleteApiKey = (id) => {
         const updated = apiKeys.filter(k => k.id !== id);
         const nextSelected = selectedKeyId === id ? (updated[0]?.id || '') : selectedKeyId;
-        
+
         setApiKeys(updated);
         setSelectedKeyId(nextSelected);
         persistSettings({ apiKeys: updated, selectedKeyId: nextSelected });
@@ -143,4 +144,5 @@ export const useSettings = () => {
         deletePrivacyFilter
     };
 };
+
 
