@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/authContext';
 import { USER_ROLES } from '../auth/authContext';
-import { USER_DEPARTMENTS } from '../constants/departments';
 import { useLinks } from '../hooks/useLinks';
 import { 
     getAllUsers, 
@@ -14,7 +13,8 @@ import {
 import './AdminPanel.scss';
 
 function AdminPanel() {
-    const { user, hasPermission } = useAuth();
+    const { user, hasPermission, userDepartments } = useAuth();
+    const USER_DEPARTMENTS = userDepartments;
     const links = useLinks();
     const [activeTab, setActiveTab] = useState('users');
     const [users, setUsers] = useState([]);

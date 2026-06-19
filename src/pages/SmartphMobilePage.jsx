@@ -30,27 +30,8 @@ function SmartphMobilePage() {
         type: 'app'
     });
 
-    const { hasPermission } = useAuth();
+    const { hasPermission, departments } = useAuth();
     const smartphLinks = useSmartPhLinks();
-
-    const departments = [
-        { value: 'all', label: 'Tất cả' },
-        { value: 'SALES', label: 'Sales' },
-        { value: 'MARKETING', label: 'Marketing' },
-        { value: 'PROJECT', label: 'Dự Án' },
-        { value: 'CUSTOMER', label: 'CSKH' },
-        { value: 'PURCHASE', label: 'Mua Hàng' },
-        { value: 'ACCOUNTING', label: 'Kế Toán' },
-        { value: 'HR', label: 'HCNS' },
-        { value: 'RD', label: 'R&D' },
-        { value: 'SMARTPH_PROD', label: 'SX SmartpH' },
-        { value: 'BESTLAB_PROD', label: 'SX BestLab' },
-        { value: 'SMARTPH_CONST', label: 'CT SmartpH' },
-        { value: 'BESTLAB_CONST', label: 'CT BestLab' },
-        { value: 'QCP', label: 'QCP' },
-        { value: 'MECHANICAL', label: 'Cơ Khí' },
-        { value: 'ISO', label: 'ISO' },
-    ];
 
     React.useEffect(() => {
         smartphLinks.updateFilters({

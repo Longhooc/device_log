@@ -64,6 +64,41 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [departments, setDepartments] = useState([
+        { value: 'all', label: 'Tất cả phòng ban' },
+        { value: 'SALES', label: 'Sales' },
+        { value: 'MARKETING', label: 'Marketing' },
+        { value: 'PROJECT', label: 'Dự Án' },
+        { value: 'CUSTOMER', label: 'Chăm Sóc Khách Hàng' },
+        { value: 'PURCHASE', label: 'Mua Hàng' },
+        { value: 'ACCOUNTING', label: 'Kế Toán' },
+        { value: 'HR', label: 'Hành Chính Nhân Sự' },
+        { value: 'RD', label: 'R&D' },
+        { value: 'SMARTPH_PROD', label: 'Sản Xuất SmartpH' },
+        { value: 'BESTLAB_PROD', label: 'Sản xuất BestLab' },
+        { value: 'SMARTPH_CONST', label: 'Công trình SmartpH' },
+        { value: 'BESTLAB_CONST', label: 'Công trình BestLab' },
+        { value: 'QCP', label: 'QCP' },
+        { value: 'MECHANICAL', label: 'Cơ Khí' },
+        { value: 'ISO', label: 'ISO' }
+    ]);
+    const [userDepartments, setUserDepartments] = useState([
+        { value: 'SALES', label: 'Sales' },
+        { value: 'MARKETING', label: 'Marketing' },
+        { value: 'PROJECT', label: 'Dự Án' },
+        { value: 'CUSTOMER', label: 'Chăm Sóc Khách Hàng' },
+        { value: 'PURCHASE', label: 'Mua Hàng' },
+        { value: 'ACCOUNTING', label: 'Kế Toán' },
+        { value: 'HR', label: 'Hành Chính Nhân Sự' },
+        { value: 'RD', label: 'R&D' },
+        { value: 'SMARTPH_PROD', label: 'Sản Xuất SmartpH' },
+        { value: 'BESTLAB_PROD', label: 'Sản xuất BestLab' },
+        { value: 'SMARTPH_CONST', label: 'Công trình SmartpH' },
+        { value: 'BESTLAB_CONST', label: 'Công trình BestLab' },
+        { value: 'QCP', label: 'QCP' },
+        { value: 'MECHANICAL', label: 'Cơ Khí' },
+        { value: 'ISO', label: 'ISO' }
+    ]);
 
     // Khởi tạo user từ localStorage và API
     useEffect(() => {
@@ -100,6 +135,45 @@ export const AuthProvider = ({ children }) => {
 
         initializeAuth();
     }, []);
+
+    // Tải phòng ban động từ API khi user đã đăng nhập
+    useEffect(() => {
+        if (!user) return;
+
+        const loadApiDepartments = async () => {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/departments/tree`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (response.ok) {
+                    const resJson = await response.json();
+                    if (resJson.success && Array.isArray(resJson.data)) {
+                        const list = [];
+                        for (const parent of resJson.data) {
+                            list.push({ value: parent.name, label: parent.name });
+                            for (const child of (parent.children || [])) {
+                                list.push({ value: child.name, label: `└─ ${child.name}` });
+                            }
+                        }
+                        if (list.length > 0) {
+                            setDepartments([
+                                { value: 'all', label: 'Tất cả phòng ban' },
+                                ...list
+                            ]);
+                            setUserDepartments(list);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching api departments in auth:', error);
+            }
+        };
+
+        loadApiDepartments();
+    }, [user]);
 
     // Đăng nhập
     const login = async (username, password) => {
@@ -172,6 +246,8 @@ export const AuthProvider = ({ children }) => {
         hasPermission,
         canAccessLink,
         canPreviewLink,
+        departments,
+        userDepartments,
         isAuthenticated: !!user
     };
 

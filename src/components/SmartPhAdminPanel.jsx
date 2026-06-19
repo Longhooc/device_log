@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/authContext';
 import { USER_ROLES } from '../auth/authContext';
-import { USER_DEPARTMENTS } from '../constants/departments';
 import { useSmartPhLinks } from '../hooks/useSmartPhLinks';
 import { 
     getAllUsers, 
     createUser, 
-    deleteUser, 
-    addUserToLinkPermissions,
-    removeUserFromLinkPermissions,
-    getLinkPermissionUsers
+    deleteUser
 } from '../api/authApi';
 import './AdminPanel.scss';
 
 function SmartPhAdminPanel({ onClose }) {
-    const { user, hasPermission } = useAuth();
+    const { user, hasPermission, userDepartments } = useAuth();
+    const USER_DEPARTMENTS = userDepartments;
     const smartphLinks = useSmartPhLinks();
     const [activeTab, setActiveTab] = useState('users');
     const [users, setUsers] = useState([]);
