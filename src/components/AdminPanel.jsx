@@ -259,7 +259,7 @@ function AdminPanel() {
 
         // Get all users of the selected department that don't have permission yet
         const departmentUsersWithoutPermission = users.filter(
-            u => u.department === department && !linkPermissionUsers.some(pu => pu.id === u.id)
+            u => (u.subDeptName === department || u.department === department) && !linkPermissionUsers.some(pu => pu.id === u.id)
         );
 
         if (departmentUsersWithoutPermission.length === 0) {
@@ -587,7 +587,7 @@ function AdminPanel() {
                                                         <option value="">-- Chọn phòng ban --</option>
                                                         {USER_DEPARTMENTS.map(dept => {
                                                             const departmentUsersCount = users.filter(
-                                                                u => u.department === dept.value && !linkPermissionUsers.some(pu => pu.id === u.id)
+                                                                u => (u.subDeptName === dept.value || u.department === dept.value) && !linkPermissionUsers.some(pu => pu.id === u.id)
                                                             ).length;
                                                             return (
                                                                 <option key={dept.value} value={dept.value}>
@@ -600,7 +600,7 @@ function AdminPanel() {
                                                 <button
                                                     className="btn-secondary"
                                                     onClick={() => handleAddUsersByDepartment(selectedLinkId, selectedDepartmentForAdd)}
-                                                    disabled={isLoading || !selectedDepartmentForAdd || users.filter(u => u.department === selectedDepartmentForAdd && !linkPermissionUsers.some(pu => pu.id === u.id)).length === 0}
+                                                    disabled={isLoading || !selectedDepartmentForAdd || users.filter(u => (u.subDeptName === selectedDepartmentForAdd || u.department === selectedDepartmentForAdd) && !linkPermissionUsers.some(pu => pu.id === u.id)).length === 0}
                                                     style={{ width: '100%' }}
                                                 >
                                                     {isLoading ? 'Đang thêm...' : '➕ Thêm tất cả user của phòng ban'}
