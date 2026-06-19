@@ -1,13 +1,13 @@
 import axios from 'axios';
 
 export const fetchAllDataAPI = async () => {
-    const response = await axios.get("https://axithcl.sytes.net:7778/fetchAll");
+    const response = await axios.get("https://quantrac.online:9443/fetchAll");
 
     return response;
 };
 
 export const fetchDataByNameAPI = async (seri) => {
-    const response = await axios.get("https://axithcl.sytes.net:7778/fetch",
+    const response = await axios.get("https://quantrac.online:9443/fetch",
         {
             params: { seri },
         }
@@ -17,7 +17,7 @@ export const fetchDataByNameAPI = async (seri) => {
 };
 export const submitAPI = async (data) => {
 
-    const response = await axios.post("https://axithcl.sytes.net:7778/submit", data, {
+    const response = await axios.post("https://quantrac.online:9443/submit", data, {
         headers: { "Content-Disposition": "application/json" },
     });
     return response; // Trả về toàn bộ phản hồi để xử lý
@@ -25,7 +25,7 @@ export const submitAPI = async (data) => {
 };
 export const deleteData = async (id, confirmationCode) => {
     try {
-        const response = await axios.delete(`https://axithcl.sytes.net:7778/delete/${id}`, {
+        const response = await axios.delete(`https://quantrac.online:9443/delete/${id}`, {
             headers: { "Content-Type": "application/json" },
             data: {
             code: confirmationCode

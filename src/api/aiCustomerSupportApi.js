@@ -1,7 +1,7 @@
 // AI Customer Support API Service
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://axithcl.sytes.net:7778';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://quantrac.online:9443';
 
 // Tạo axios instance với authentication
 const createApiInstance = () => {

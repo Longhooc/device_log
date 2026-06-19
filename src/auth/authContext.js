@@ -143,7 +143,7 @@ export const AuthProvider = ({ children }) => {
         const loadApiDepartments = async () => {
             try {
                 const token = localStorage.getItem('authToken');
-                const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/departments/tree`, {
+                const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://quantrac.online:9443'}/api/departments/tree`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }

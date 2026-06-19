@@ -50,7 +50,7 @@ function SmartPhAdminPanel({ onClose }) {
     // Load users có quyền truy cập SmartPH link cụ thể
     const loadLinkPermissionUsers = async (linkId) => {
         try {
-            const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://axithcl.sytes.net:7778'}/api/smartph/links/${linkId}/permissions/users`, {
+            const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://quantrac.online:9443'}/api/smartph/links/${linkId}/permissions/users`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
                     'Content-Type': 'application/json'
@@ -210,7 +210,7 @@ function SmartPhAdminPanel({ onClose }) {
     const handleAddUserToLink = async (linkId, userId) => {
         try {
             setIsLoading(true);
-            await fetch(`${process.env.REACT_APP_API_URL || 'https://axithcl.sytes.net:7778'}/api/smartph/links/${linkId}/permissions/users`, {
+            await fetch(`${process.env.REACT_APP_API_URL || 'https://quantrac.online:9443'}/api/smartph/links/${linkId}/permissions/users`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -232,7 +232,7 @@ function SmartPhAdminPanel({ onClose }) {
         if (window.confirm('Bạn có chắc chắn muốn xóa quyền truy cập SmartPH link này?')) {
             try {
                 setIsLoading(true);
-                await fetch(`${process.env.REACT_APP_API_URL || 'https://axithcl.sytes.net:7778'}/api/smartph/links/${linkId}/permissions/users/${userId}`, {
+                await fetch(`${process.env.REACT_APP_API_URL || 'https://quantrac.online:9443'}/api/smartph/links/${linkId}/permissions/users/${userId}`, {
                     method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
